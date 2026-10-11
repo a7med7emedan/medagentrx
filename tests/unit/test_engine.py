@@ -209,6 +209,10 @@ def test_unlisted_modification(tmp_path: Path) -> None:
     result = run(case)
     assert result.verdict is Verdict.OUTSIDE_PLAN
     assert result.failed_checks == ["PLAN-002"]
+    assert statuses(result)["PERF-001"] == "skipped"
+    assert "outside the plan (PLAN-002)" in result.finding("PERF-001").message
+    assert not result.touched_test_set
+    assert result.alpha_used is None
 
 
 def test_changed_intended_use(tmp_path: Path) -> None:
@@ -316,6 +320,7 @@ def test_evaluation_budget_exhausted(good: Case) -> None:
     result = run(good, _history_for(good, looks_used=20))
     assert result.verdict is Verdict.OUTSIDE_PLAN
     assert result.failed_checks == ["DATA-004"]
+    assert not result.touched_test_set
 
 
 def test_population_shift_warns_without_changing_verdict(tmp_path: Path) -> None:

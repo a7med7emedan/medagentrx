@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -23,6 +23,9 @@ from medagentrx.io.limits import DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_ROWS, Limit
 from medagentrx.plan import load_plan_with_warnings, parse_plan_text, plan_fingerprint
 from medagentrx.plan.schema import plan_json_schema_text
 from medagentrx.plan.template import PlanAnswers, render_plan_template
+
+if TYPE_CHECKING:
+    from medagentrx.engine import Evaluation
 
 app = typer.Typer(
     name="medagentrx",
@@ -118,6 +121,134 @@ def fingerprint(
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     typer.echo(digest)
+
+
+@app.command()
+def check(
+    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    candidate: Annotated[Path, typer.Option("--candidate", help="Candidate predictions.")],
+    previous: Annotated[
+        Path, typer.Option("--previous", help="Predictions of the version replaced.")
+    ],
+    anchor: Annotated[
+        Path, typer.Option("--anchor", help="Predictions of the authorised version.")
+    ],
+    manifest: Annotated[Path, typer.Option("--manifest", help="Training data manifest.")],
+    model_meta: Annotated[Path, typer.Option("--model-meta", help="Candidate model.yaml.")],
+    ledger: Annotated[Path, typer.Option("--ledger", help="Decision ledger, created if missing.")],
+    out: Annotated[Path, typer.Option("--out", help="Directory for the reports.")],
+    seed: Annotated[int, typer.Option("--seed", help="Seed for every resampling step.")] = 0,
+    replicates: Annotated[
+        int, typer.Option("--replicates", min=100, help="Bootstrap replicates.")
+    ] = 2000,
+    max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
+    max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+) -> None:
+    """Check one model update against its change plan and record the decision.
+
+    Exit codes: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
+    """
+    from medagentrx.engine import evaluate
+    from medagentrx.ledger import append, exclusive, load_history
+    from medagentrx.report.json_report import write_json
+
+    limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
+    try:
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        with exclusive(ledger):
+            evaluation = evaluate(
+                plan=plan,
+                candidate=candidate,
+                previous=previous,
+                anchor=anchor,
+                manifest=manifest,
+                model_meta=model_meta,
+                history=load_history(ledger),
+                seed=seed,
+                n_replicates=replicates,
+                limits=limits,
+            )
+            entry = None
+            if evaluation.plan_id is not None:
+                entry = append(ledger, evaluation, already_locked=True)
+        ledger_info = None if entry is None else {"seq": entry["seq"], "hash": entry["hash"]}
+        report = write_json(out, evaluation, ledger=ledger_info)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    _print_summary(evaluation)
+    typer.echo(f"report: {report}")
+    if entry is not None:
+        typer.echo(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    raise typer.Exit(evaluation.exit_code)
+
+
+def _print_summary(evaluation: Evaluation) -> None:
+    typer.echo(f"verdict: {evaluation.verdict.value}")
+    for finding in evaluation.findings:
+        if finding.status.value in ("fail", "warn"):
+            typer.echo(f"  {finding.status.value.upper():4} {finding.check_id}: {finding.message}")
+
+
+ledger_app = typer.Typer(help="Inspect and verify the decision ledger.", no_args_is_help=True)
+app.add_typer(ledger_app, name="ledger")
+
+
+@ledger_app.command("verify")
+def ledger_verify(
+    ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
+    head: Annotated[
+        Path | None, typer.Option("--head", help="Head file. Defaults to LEDGER.head.")
+    ] = None,
+) -> None:
+    """Recompute the hash chain and compare it with the recorded head.
+
+    Exit codes: 0 intact, 1 fails verification, 3 input or usage error.
+    """
+    from medagentrx.ledger import verify
+
+    try:
+        result = verify(ledger, head_path=head)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    if result.ok:
+        typer.echo(f"ok: {result.entries} entries, head {result.head}")
+        return
+    typer.echo(f"ledger fails verification: {ledger}", err=True)
+    for problem in result.problems:
+        typer.echo(f"  - {problem}", err=True)
+    raise typer.Exit(1)
+
+
+@ledger_app.command("show")
+def ledger_show(
+    ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
+) -> None:
+    """List every evaluation in the ledger, oldest first."""
+    from medagentrx.ledger import read_entries, summarize
+
+    try:
+        entries = read_entries(ledger)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    if not entries:
+        typer.echo("the ledger is empty")
+        return
+    header = f"{'seq':>4}  {'recorded':<19} {'version':<10} {'verdict':<12} {'alpha':>8}  checks"
+    typer.echo(header)
+    for e in entries:
+        used = e.get("alpha", {}).get("used")
+        alpha = "-" if used is None else f"{used:.5f}"
+        failed = ",".join(e.get("failed_checks", [])) or "-"
+        typer.echo(
+            f"{e.get('seq', '?'):>4}  {str(e.get('recorded_at', ''))[:19]:<19} "
+            f"{e.get('candidate_version', '')!s:<10} {e.get('verdict', '')!s:<12} "
+            f"{alpha:>8}  {failed}"
+        )
+    history = summarize(entries)
+    typer.echo(
+        f"looks used: {history.looks_used}; releases: {len(history.releases)}; "
+        f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}"
+    )
 
 
 @app.command()
