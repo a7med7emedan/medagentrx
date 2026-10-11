@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Path guards for inputs and outputs.
 
-Inputs must be regular files. A symbolic link is followed only when its
-target lies inside the base directory, which defaults to the working
-directory. Outputs are written only inside the chosen output directory.
+Inputs must be regular files. Inside the base directory, which defaults to
+the working directory, a symbolic link is followed only when its target also
+lies inside it. This stops a link planted in a checkout from reading files
+elsewhere. Paths the user gives outside the base directory are taken as
+chosen. Outputs are written only inside the chosen output directory.
 """
 
 from __future__ import annotations
@@ -33,9 +35,10 @@ def resolve_input(
             through a symlink that points outside ``base``.
     """
     given = Path(path)
-    root = (base or Path.cwd()).resolve()
+    base_abs = Path(os.path.abspath(base or Path.cwd()))  # noqa: PTH100  # lexical on purpose
+    root = base_abs.resolve()
     absolute = Path(os.path.abspath(given))  # noqa: PTH100  # lexical: links not followed yet
-    for link in _symlinks_on(absolute):
+    for link in _symlinks_below(absolute, (base_abs, root)):
         if not link.resolve().is_relative_to(root):
             raise error(f"{given}: symbolic link {link} points outside {root}")
     if not absolute.exists():
@@ -46,14 +49,18 @@ def resolve_input(
     return real
 
 
-def _symlinks_on(absolute: Path) -> list[Path]:
-    links: list[Path] = []
-    current = Path(absolute.anchor)
-    for part in absolute.parts[1:]:
-        current = current / part
-        if current.is_symlink():
-            links.append(current)
-    return links
+def _symlinks_below(absolute: Path, bases: tuple[Path, ...]) -> list[Path]:
+    """Symlinked components of ``absolute`` below whichever base contains it."""
+    for top in bases:
+        if absolute.is_relative_to(top):
+            links: list[Path] = []
+            current = top
+            for part in absolute.relative_to(top).parts:
+                current = current / part
+                if current.is_symlink():
+                    links.append(current)
+            return links
+    return []
 
 
 def check_size(path: Path, *, max_bytes: int, error: type[MedAgentRxError] = InputError) -> None:

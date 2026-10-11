@@ -54,7 +54,7 @@ def test_python_object_tag_is_refused_without_running(tmp_path: Path) -> None:
         ("a: !custom 1\n", "not valid YAML"),
         ("a: [unclosed\n", "not valid YAML"),
         ("a: \x00\n", "unacceptable character"),
-        ("[" * 5000 + "]" * 5000, "nesting is too deep"),
+        pytest.param("[" * 5000 + "]" * 5000, "nesting is too deep", id="deep-nesting"),
     ],
 )
 def test_hostile_yaml_is_refused(text: str, message: str) -> None:
