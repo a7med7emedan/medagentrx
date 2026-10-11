@@ -4,6 +4,7 @@
 stages:
   - lint
   - test
+  - reference
 
 default:
   image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
@@ -35,3 +36,16 @@ test:
   script:
     - uv sync --locked
     - uv run pytest
+    - uv run coverage report --include="src/medagentrx/stats/*,src/medagentrx/checks/*" --fail-under=95
+
+reference-proc:
+  stage: reference
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends r-base-core r-cran-proc r-cran-jsonlite
+  script:
+    - cp tests/reference/pROC/expected.json /tmp/expected.committed.json
+    - Rscript tests/reference/pROC/delong_reference.R
+    - uv run python -c "import json; a=json.load(open('/tmp/expected.committed.json'))['datasets']; b=json.load(open('tests/reference/pROC/expected.json'))['datasets']; assert all(abs(b[d][k]-v)<1e-10 for d in a for k,v in a[d].items()); print('pROC reference values unchanged')"
+    - uv sync --locked
+    - uv run pytest tests/reference --no-cov

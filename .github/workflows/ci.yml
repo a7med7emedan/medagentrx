@@ -45,3 +45,33 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run pytest
+      - name: Coverage of stats and checks
+        run: uv run coverage report --include="src/medagentrx/stats/*,src/medagentrx/checks/*" --fail-under=95
+
+  reference-proc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05  # v2.14.0
+        with:
+          use-public-rspm: true
+      - name: Install pROC
+        run: Rscript -e 'install.packages(c("pROC", "jsonlite"))'
+      - name: Recompute pROC reference values
+        run: Rscript tests/reference/pROC/delong_reference.R
+      - name: Reference values must not change
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          old = json.loads(subprocess.check_output(["git", "show", "HEAD:tests/reference/pROC/expected.json"]))
+          new = json.load(open("tests/reference/pROC/expected.json"))
+          for name, values in old["datasets"].items():
+              for key, value in values.items():
+                  assert abs(new["datasets"][name][key] - value) < 1e-10, (name, key)
+          print("pROC reference values unchanged")
+          PY
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+      - run: uv sync --locked
+      - run: uv run pytest tests/reference --no-cov

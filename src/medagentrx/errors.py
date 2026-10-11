@@ -31,3 +31,7 @@ class PlanError(MedAgentRxError):
 
 class InputError(MedAgentRxError):
     """A prediction file, manifest, metadata file or path is not acceptable."""
+
+
+class StatsError(MedAgentRxError):
+    """A statistic cannot be computed from the data given, for example one class only."""
