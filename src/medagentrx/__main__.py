@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Allow ``python -m medagentrx``."""
 
-from medagentrx.cli import app
+from medagentrx.cli import run
 
 if __name__ == "__main__":
-    app(prog_name="medagentrx")
+    run()

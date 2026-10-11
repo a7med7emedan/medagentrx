@@ -67,7 +67,7 @@ dependencies = [
 web = []
 
 [project.scripts]
-medagentrx = "medagentrx.cli:app"
+medagentrx = "medagentrx.cli:run"
 
 [project.urls]
 Homepage = "https://github.com/a7med7emedan/medagentrx"
@@ -110,6 +110,7 @@ strict = true
 python_version = "3.11"
 files = ["src", "tests"]
 warn_unreachable = true
+plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["yaml", "yaml.*", "jsonschema", "jsonschema.*", "pyarrow", "pyarrow.*"]

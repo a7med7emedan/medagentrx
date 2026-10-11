@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example change plan for a synthetic sepsis risk score.
+# Validate it with: medagentrx validate examples/sepsis-risk/change-plan.yaml
+
+pccp_version: "1.0"            # schema version of this file format
+plan:
+  id: SEPSIS-RISK-PCCP
+  revision: 3                  # any change to the plan itself must bump this
+  authorised: 2026-03-01
+  device: "Sepsis risk score v2"
+  # SHA-256 of intended-use.txt in this folder
+  intended_use_sha256: "b3bf70048c7ee76c2a16884829d284f27b32795bea5c63d734aafc8fdd0ceeaa"
+
+anchor_version: "2.0.0"        # the originally authorised model, never changes
+max_updates: 12                # updates allowed under this plan
+update_frequency: {max_per: quarter, count: 1}
+
+modifications:                 # FDA "Description of Modifications"
+  - id: M1
+    type: retrain_same_architecture
+    automatic: false           # manual, human-triggered
+    scope: global              # same for all sites
+  - id: M2
+    type: recalibrate
+    automatic: false
+    scope: global
+
+data_management:               # FDA Modification Protocol, element 1
+  training_inclusion:
+    all:
+      - {field: age, op: ge, value: 18}
+      - {field: site, op: in, value: [A, B, C]}
+      - {field: admission_date, op: between, value: [2023-01-01, 2026-12-31]}
+  locked_test_set:
+    # Provisional. Replaced by the fingerprint of the synthetic demo test set.
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    max_evaluations: 20        # looks at the locked test set over the life of the plan
+  forbid_overlap_on: [patient_id]
+
+performance:                   # FDA Modification Protocol, element 3
+  alpha_total: 0.05            # family-wise error across all updates under this plan
+  alpha_spending: bonferroni   # or: alpha_investing
+  operating_threshold: 0.30
+  criteria:
+    - {metric: auroc, test: non_inferiority, vs: [previous, anchor], margin: 0.02}
+    - {metric: sensitivity_at_threshold, test: non_inferiority, vs: [previous], margin: 0.03}
+    - {metric: calibration_slope, test: within, bounds: [0.8, 1.2]}
+    - {metric: calibration_intercept, test: within, bounds: [-0.2, 0.2]}
+    - {metric: net_benefit, at_thresholds: [0.1, 0.2, 0.3], test: non_inferiority, vs: [previous], margin: 0.005}
+  cumulative_drift:            # bio-creep guard against the anchor
+    metric: auroc
+    max_drop_vs_anchor: 0.02
+  subgroups:
+    by: [sex, age_band, site]
+    metric: auroc
+    max_drop: 0.03
+    min_events: 30             # positives and negatives each, else insufficient evidence
+    on_insufficient: fail      # or: warn
+    multiplicity: holm
+  power:
+    min_power: 0.80            # warn if the test set cannot detect the margin
+
+update_procedures:             # FDA Modification Protocol, element 4
+  require_model_card_update: true
+  user_communication: "Release notes to clinical users before deployment"
+  real_world_monitoring: "Monthly AUROC and calibration on live data"
+
+impact_assessment:             # FDA third component
+  benefits: "Keeps the score current as case-mix changes"
+  risks:
+    - {risk: "Silent performance loss in a subgroup", mitigation: "Subgroup criterion with Holm correction"}
+    - {risk: "Gradual drift across many small updates", mitigation: "Cumulative drift guard vs anchor"}
+
+regulatory_map:                # informative cross-reference, rendered in the plan document
+  fda: "PCCP final guidance, 4 Dec 2024"
+  eu: ["AI Act Art. 43(4)", "AI Act Annex IV 2(f)", "MDCG 2025-6"]

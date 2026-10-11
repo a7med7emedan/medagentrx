@@ -1,7 +1,16 @@
 version = 1
 
 [[annotations]]
-path = ["uv.lock", ".python-version", "NOTICE", "LICENSE", "py.typed", "**/py.typed", "tests/**/__init__.py"]
+path = [
+    "uv.lock",
+    ".python-version",
+    "NOTICE",
+    "LICENSE",
+    "**/py.typed",
+    "tests/**/__init__.py",
+    "schema/*.json",
+    "examples/**/*.txt",
+]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Ahmed Hemedan"
 SPDX-License-Identifier = "Apache-2.0"
