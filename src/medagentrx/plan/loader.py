@@ -20,10 +20,12 @@ from jsonschema.exceptions import best_match
 from pydantic import ValidationError
 
 from medagentrx.errors import PlanError
+from medagentrx.io.paths import resolve_input
+from medagentrx.io.text import read_text_limited
 from medagentrx.plan.logic import Issue, check_logic
 from medagentrx.plan.models import ChangePlan
 from medagentrx.plan.schema import plan_json_schema
-from medagentrx.plan.yaml_safe import JSONValue, parse_yaml
+from medagentrx.safe_yaml import JSONValue, parse_yaml
 
 DEFAULT_MAX_PLAN_BYTES = 1_000_000
 """Largest plan file accepted, in bytes. Real plans are a few kilobytes."""
@@ -57,27 +59,9 @@ def load_plan_with_warnings(
     path: str | Path, *, max_bytes: int = DEFAULT_MAX_PLAN_BYTES
 ) -> LoadedPlan:
     """Load a plan file and also return the logic warnings."""
-    source = str(path)
-    return parse_plan_text(read_text_limited(Path(path), max_bytes=max_bytes), source=source)
-
-
-def read_text_limited(path: Path, *, max_bytes: int) -> str:
-    """Read a UTF-8 text file, refusing anything larger than ``max_bytes``."""
-    try:
-        with path.open("rb") as handle:
-            raw = handle.read(max_bytes + 1)
-    except FileNotFoundError:
-        raise PlanError(f"{path}: file not found") from None
-    except IsADirectoryError:
-        raise PlanError(f"{path}: is a directory, expected a file") from None
-    except OSError as exc:
-        raise PlanError(f"{path}: cannot be read ({exc.strerror})") from None
-    if len(raw) > max_bytes:
-        raise PlanError(f"{path}: larger than the limit of {max_bytes} bytes")
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise PlanError(f"{path}: not UTF-8 text (byte {exc.start})") from None
+    real = resolve_input(path, error=PlanError)
+    text = read_text_limited(real, max_bytes=max_bytes, error=PlanError)
+    return parse_plan_text(text, source=str(path))
 
 
 def parse_plan_text(text: str, *, source: str = "<plan>") -> LoadedPlan:
