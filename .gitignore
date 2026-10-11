@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+
+# Data never belongs in the repository, except the synthetic demo
+data/
+*.pkl
+*.pickle
+*.joblib
+
+# Outputs
+/out/
+/report/
+/site/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Editors and systems
+.DS_Store
+.idea/
+.vscode/
