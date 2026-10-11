@@ -18,19 +18,24 @@ do not change the fingerprint. Any added, removed or relabelled row does.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from pathlib import Path
 
 from medagentrx.io.limits import Limits
 from medagentrx.io.predictions import Predictions, load_predictions
 
 
+def fingerprint_rows(row_ids: Sequence[str], labels: Sequence[int]) -> str:
+    """Canonical fingerprint of row identifiers and their 0 or 1 labels."""
+    digest = hashlib.sha256()
+    for row_id, label in sorted(zip(row_ids, labels, strict=True)):
+        digest.update(f"{row_id}\t{int(label)}\n".encode())
+    return digest.hexdigest()
+
+
 def test_set_fingerprint(predictions: Predictions) -> str:
     """Return the canonical fingerprint of the rows and labels in ``predictions``."""
-    digest = hashlib.sha256()
-    rows = sorted(zip(predictions.row_id.tolist(), predictions.y_true.tolist(), strict=True))
-    for row_id, label in rows:
-        digest.update(f"{row_id}\t{label}\n".encode())
-    return digest.hexdigest()
+    return fingerprint_rows(predictions.row_id.tolist(), predictions.y_true.tolist())
 
 
 def fingerprint_file(

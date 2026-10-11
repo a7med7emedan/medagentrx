@@ -19,3 +19,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Statistics core: DeLong AUROC tests (cross-checked against R pROC), paired stratified bootstrap with BCa intervals, Tango paired proportions, calibration, net benefit, Holm and Bonferroni, alpha spending, power and standardised mean differences.
 - Check registry with the 18 PLAN, DATA, PERF, LIFE and DOC checks, the evaluation engine and the verdict rule.
 - Hash-chained decision ledger with a head file, budgets read back from it, `ledger verify` and `ledger show`, and the `check` command writing `report.json`.
+- Synthetic sepsis demo cohort, nine planted scenarios with exact expected verdicts, the `demo` command, and example data in `examples/sepsis-risk`.

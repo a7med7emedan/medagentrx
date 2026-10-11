@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -249,6 +249,52 @@ def ledger_show(
         f"looks used: {history.looks_used}; releases: {len(history.releases)}; "
         f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}"
     )
+
+
+@app.command()
+def demo(
+    out: Annotated[
+        Path, typer.Option("--out", help="Directory for the scenario files and reports.")
+    ] = Path("medagentrx-demo"),
+    scenario: Annotated[
+        list[str] | None,
+        typer.Option("--scenario", help="Run only this scenario. Repeat for more."),
+    ] = None,
+    replicates: Annotated[
+        int, typer.Option("--replicates", min=100, help="Bootstrap replicates.")
+    ] = 2000,
+) -> None:
+    """Run the planted scenarios on synthetic data and check each verdict.
+
+    Exit codes: 0 every scenario gave its expected verdict, 1 otherwise.
+    """
+    from medagentrx.demo import SCENARIOS, run_all
+    from medagentrx.report.json_report import write_json
+
+    unknown = [name for name in scenario or [] if name not in SCENARIOS]
+    if unknown:
+        typer.echo(f"error: unknown scenario(s): {', '.join(unknown)}", err=True)
+        typer.echo(f"choose from: {', '.join(SCENARIOS)}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+
+    def write(directory: Path, evaluation: Evaluation, entry: dict[str, Any] | None) -> None:
+        ledger = None if entry is None else {"seq": entry["seq"], "hash": entry["hash"]}
+        write_json(directory / "report", evaluation, ledger=ledger)
+
+    typer.echo("Synthetic data only. No real patient data is used.")
+    results = run_all(out, names=scenario, n_replicates=replicates, on_step=write)
+    typer.echo(f"{'scenario':<20} {'expected':<14} {'got':<14} {'checks':<12} ok")
+    for result in results:
+        for step in result.steps:
+            got = step.evaluation
+            expected = step.step.expected.value
+            checks = ",".join(got.failed_checks) or "-"
+            mark = "yes" if step.ok else "NO"
+            name = result.scenario.name
+            typer.echo(f"{name:<20} {expected:<14} {got.verdict.value:<14} {checks:<12} {mark}")
+    passed = sum(r.ok for r in results)
+    typer.echo(f"{passed} of {len(results)} scenarios gave their expected verdict. Files: {out}")
+    raise typer.Exit(0 if passed == len(results) else 1)
 
 
 @app.command()
