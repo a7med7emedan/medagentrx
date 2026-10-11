@@ -34,8 +34,8 @@ data_management:               # FDA Modification Protocol, element 1
       - {field: site, op: in, value: [A, B, C]}
       - {field: admission_date, op: between, value: [2023-01-01, 2026-12-31]}
   locked_test_set:
-    # Provisional. Replaced by the fingerprint of the synthetic demo test set.
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    # Fingerprint of the synthetic test set in this folder (medagentrx fingerprint).
+    sha256: "e9a46f9b1611799e6a08a8356a9ccd66eaff69bcd21bd759556a4e5373606c5d"
     max_evaluations: 20        # looks at the locked test set over the life of the plan
   forbid_overlap_on: [patient_id]
 
