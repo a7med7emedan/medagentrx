@@ -179,9 +179,22 @@ def paired_auc_test(
     if margin < 0:
         raise StatsError(f"margin must be zero or positive, got {margin}")
     result = delong(y_true, scores_new, scores_ref)
-    auc_new, auc_ref = (float(a) for a in result.auc)
+    return paired_test_from(result, 0, 1, margin=margin, alpha=alpha)
+
+
+def paired_test_from(
+    result: AucCovariance, new: int, ref: int, *, margin: float, alpha: float
+) -> PairedAucTest:
+    """Paired non-inferiority test of score ``new`` against score ``ref`` in ``result``.
+
+    Lets several comparisons share one DeLong computation.
+    """
+    check_alpha(alpha)
+    if margin < 0:
+        raise StatsError(f"margin must be zero or positive, got {margin}")
+    auc_new, auc_ref = float(result.auc[new]), float(result.auc[ref])
     delta = auc_new - auc_ref
-    var = float(result.cov[0, 0] + result.cov[1, 1] - 2.0 * result.cov[0, 1])
+    var = float(result.cov[new, new] + result.cov[ref, ref] - 2.0 * result.cov[new, ref])
     se = math.sqrt(max(var, 0.0))
     z_crit = norm_ppf(1.0 - alpha)
     if se == 0.0:

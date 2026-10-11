@@ -79,6 +79,28 @@ def read_table(
     raise InputError(f"{source}: unsupported file type {suffix!r}; use .csv or .parquet")
 
 
+def peek_columns(
+    path: str | Path, *, limits: Limits | None = None, base: Path | None = None
+) -> list[str]:
+    """Return the column names of a CSV or Parquet file without reading its rows."""
+    limits = limits or Limits()
+    source = str(path)
+    real = resolve_input(path, base=base)
+    check_size(real, max_bytes=limits.max_file_bytes)
+    suffix = real.suffix.lower()
+    try:
+        if suffix in CSV_SUFFIXES:
+            with real.open("r", encoding="utf-8-sig", newline="") as handle:
+                return next(csv.reader(handle), [])
+        if suffix in PARQUET_SUFFIXES:
+            return list(pq.ParquetFile(real).schema_arrow.names)
+    except UnicodeDecodeError as exc:
+        raise InputError(f"{source}: not UTF-8 text (byte {exc.start})") from None
+    except (csv.Error, pa.ArrowException, OSError) as exc:
+        raise InputError(f"{source}: cannot read the header ({exc})") from None
+    raise InputError(f"{source}: unsupported file type {suffix!r}; use .csv or .parquet")
+
+
 def _select(
     source: str,
     header: Sequence[str],

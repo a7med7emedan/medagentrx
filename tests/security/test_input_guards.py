@@ -64,6 +64,19 @@ def test_plan_symlink_escaping_working_directory_is_refused(
         load_plan("plan.yaml")
 
 
+@requires_symlinks
+def test_symlinks_outside_the_base_are_the_users_choice(
+    tmp_path: Path, predictions_columns: Columns
+) -> None:
+    outside = tmp_path / "outside"
+    work = tmp_path / "work"
+    outside.mkdir()
+    work.mkdir()
+    target = write_table(outside / "p.csv", predictions_columns)
+    (outside / "link.csv").symlink_to(target)
+    assert load_predictions(outside / "link.csv", base=work).n == 4
+
+
 def test_missing_and_special_files(tmp_path: Path) -> None:
     with pytest.raises(InputError, match="file not found"):
         resolve_input(tmp_path / "nope.csv")

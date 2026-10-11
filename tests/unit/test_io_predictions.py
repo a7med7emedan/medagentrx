@@ -192,3 +192,23 @@ def test_unsupported_suffix_and_bad_files(tmp_path: Path) -> None:
     latin.write_bytes("row_id,y_true,y_score\ncaf\xe9,1,0.5\n".encode("latin-1"))
     with pytest.raises(InputError, match="not UTF-8 text"):
         load_predictions(latin)
+
+
+def test_peek_columns(tmp_path: Path, predictions_columns: Columns) -> None:
+    from medagentrx.io.tables import peek_columns
+
+    expected = ["row_id", "y_true", "y_score", "site"]
+    assert peek_columns(write_table(tmp_path / "p.csv", predictions_columns)) == expected
+    assert peek_columns(write_table(tmp_path / "p.parquet", predictions_columns)) == expected
+    latin = tmp_path / "l.csv"
+    latin.write_bytes("caf\xe9,b\n".encode("latin-1"))
+    with pytest.raises(InputError, match="not UTF-8"):
+        peek_columns(latin)
+    broken = tmp_path / "b.parquet"
+    broken.write_bytes(b"nope")
+    with pytest.raises(InputError, match="cannot read the header"):
+        peek_columns(broken)
+    other = tmp_path / "x.json"
+    other.write_text("{}", encoding="utf-8")
+    with pytest.raises(InputError, match="unsupported file type"):
+        peek_columns(other)
