@@ -9,6 +9,7 @@ path = [
     "**/py.typed",
     "tests/**/__init__.py",
     "schema/*.json",
+    "src/medagentrx/report/*.json",
     "examples/**/*.txt",
     "examples/**/*.parquet",
     "src/medagentrx/demo/intended-use.txt",
