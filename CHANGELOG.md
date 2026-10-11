@@ -21,3 +21,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Hash-chained decision ledger with a head file, budgets read back from it, `ledger verify` and `ledger show`, and the `check` command writing `report.json`.
 - Synthetic sepsis demo cohort, nine planted scenarios with exact expected verdicts, the `demo` command, and example data in `examples/sepsis-risk`.
 - Reports: self-contained HTML with five inline SVG figures, JSON with a published schema, a Markdown summary for pull and merge requests, and JUnit XML.
+- `render-plan` writes the PCCP document (FDA components, EU cross-reference, executable check map) and `card` maintains the model card.

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:medagentrx:report:1",
+  "title": "MedAgentRx report",
+  "description": "Machine-readable result of one evaluation (report_schema 1). Non-finite numbers are written as the strings Infinity, -Infinity or NaN.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_schema", "verdict", "exit_code", "plan", "candidate_version", "previous_version",
+    "modification_id", "test_fingerprint", "alpha", "touched_test_set", "inputs", "seed",
+    "n_replicates", "evaluated_at", "tool_version", "notes", "checks", "ledger", "disclaimer"
+  ],
+  "properties": {
+    "report_schema": {"const": 1, "description": "Version of this report format."},
+    "verdict": {"enum": ["ACCEPTED", "FAILED", "OUTSIDE_PLAN"]},
+    "exit_code": {"enum": [0, 1, 2]},
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision", "fingerprint"],
+      "properties": {
+        "id": {"type": ["string", "null"]},
+        "revision": {"type": ["integer", "null"], "minimum": 1},
+        "fingerprint": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "candidate_version": {"type": ["string", "null"]},
+    "previous_version": {"type": ["string", "null"]},
+    "modification_id": {"type": ["string", "null"]},
+    "test_fingerprint": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "alpha": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "used"],
+      "properties": {
+        "method": {"enum": ["bonferroni", "alpha_investing", null]},
+        "used": {"type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+      }
+    },
+    "touched_test_set": {"type": "boolean", "description": "Whether this evaluation spent a look at the locked test set."},
+    "inputs": {
+      "type": "object",
+      "description": "SHA-256 of each input file by role.",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "seed": {"type": "integer"},
+    "n_replicates": {"type": "integer", "minimum": 100},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "tool_version": {"type": "string"},
+    "notes": {"type": "array", "items": {"type": "string"}},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "family", "breaks", "cross_reference", "status", "message", "details"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(PLAN|DATA|PERF|LIFE|DOC)-[0-9]{3}$"},
+          "title": {"type": "string"},
+          "family": {"enum": ["PLAN", "DATA", "PERF", "LIFE", "DOC"]},
+          "breaks": {"enum": ["OUTSIDE_PLAN", "FAILED", "WARNING"]},
+          "cross_reference": {"type": "string"},
+          "status": {"enum": ["pass", "fail", "warn", "not_applicable", "skipped"]},
+          "message": {"type": "string"},
+          "details": {"type": "object"}
+        }
+      }
+    },
+    "ledger": {
+      "description": "Ledger entry written for this evaluation, or null if none was written.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["seq", "hash"],
+          "properties": {
+            "seq": {"type": "integer", "minimum": 0},
+            "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        }
+      ]
+    },
+    "disclaimer": {"type": "string"}
+  }
+}

@@ -257,6 +257,53 @@ def ledger_show(
     )
 
 
+@app.command("render-plan")
+def render_plan(
+    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    out: Annotated[Path, typer.Option("--out", help="Directory for the PCCP document.")],
+    doc_format: Annotated[
+        str, typer.Option("--format", help="Document formats, comma separated: md,html.")
+    ] = "md,html",
+) -> None:
+    """Write the PCCP document (FDA components and EU cross-reference) from the plan."""
+    from medagentrx.document import to_html, to_markdown
+    from medagentrx.io.paths import safe_output_path
+    from medagentrx.plan import load_plan
+    from medagentrx.render_plan import build_document
+
+    renderers = {"md": to_markdown, "html": to_html}
+    chosen = list(dict.fromkeys(f.strip() for f in doc_format.split(",") if f.strip()))
+    if not chosen or any(f not in renderers for f in chosen):
+        typer.echo(f"error: --format must list md and/or html, got {doc_format!r}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    try:
+        document = build_document(load_plan(plan))
+        out.mkdir(parents=True, exist_ok=True)
+        for name in chosen:
+            target = safe_output_path(out, f"pccp-document.{name}")
+            target.write_text(renderers[name](document), encoding="utf-8")
+            typer.echo(f"wrote {target}")
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+
+
+@app.command()
+def card(
+    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    report: Annotated[Path, typer.Option("--report", help="report.json of an accepted update.")],
+    out: Annotated[Path, typer.Option("--out", help="Model card file to create or update.")],
+) -> None:
+    """Add or replace this version's performance section in the model card."""
+    from medagentrx.card import load_report, update_card
+    from medagentrx.plan import load_plan
+
+    try:
+        written = update_card(out, load_plan(plan), load_report(report))
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    typer.echo(f"updated {written}")
+
+
 @app.command()
 def demo(
     out: Annotated[
