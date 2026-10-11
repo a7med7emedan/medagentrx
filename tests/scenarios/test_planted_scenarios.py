@@ -124,7 +124,8 @@ def test_demo_command(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "Synthetic data only" in result.output
     assert "1 of 1 scenarios gave their expected verdict" in result.output
-    assert (tmp_path / "new-architecture" / "report" / "report.json").exists()
+    for name in ("report.json", "report.html", "summary.md", "junit.xml"):
+        assert (tmp_path / "new-architecture" / "report" / name).exists()
     bad = runner.invoke(app, ["demo", "--out", str(tmp_path), "--scenario", "nope"])
     assert bad.exit_code == 3
 
