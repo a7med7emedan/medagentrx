@@ -18,6 +18,8 @@ import typer
 from medagentrx import __version__
 from medagentrx.errors import MedAgentRxError
 from medagentrx.exit_codes import ExitCode
+from medagentrx.io.fingerprint import fingerprint_file
+from medagentrx.io.limits import DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_ROWS, Limits
 from medagentrx.plan import load_plan_with_warnings, parse_plan_text, plan_fingerprint
 from medagentrx.plan.schema import plan_json_schema_text
 from medagentrx.plan.template import PlanAnswers, render_plan_template
@@ -93,6 +95,31 @@ def validate(
         typer.echo(f"plan fingerprint: {plan_fingerprint(loaded.plan)}")
 
 
+MaxFileBytesOption = Annotated[
+    int, typer.Option("--max-file-bytes", min=1, help="Largest input file accepted, in bytes.")
+]
+MaxRowsOption = Annotated[
+    int, typer.Option("--max-rows", min=1, help="Largest number of rows in one input file.")
+]
+
+
+@app.command()
+def fingerprint(
+    test_preds: Annotated[
+        Path, typer.Argument(help="Prediction file on the locked test set.", metavar="TEST_PREDS")
+    ],
+    max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
+    max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+) -> None:
+    """Print the canonical fingerprint of the locked test set."""
+    limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
+    try:
+        digest = fingerprint_file(test_preds, limits=limits)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    typer.echo(digest)
+
+
 @app.command()
 def init(
     out: Annotated[Path, typer.Option("--out", "-o", help="Where to write the plan.")] = Path(
@@ -104,6 +131,9 @@ def init(
     force: Annotated[bool, typer.Option("--force", help="Overwrite an existing file.")] = False,
 ) -> None:
     """Write a commented starter change-plan.yaml."""
+    if out.is_symlink():
+        typer.echo(f"error: {out} is a symbolic link; refusing to write through it", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
     if out.exists() and not force:
         typer.echo(f"error: {out} exists; use --force to overwrite it", err=True)
         raise typer.Exit(ExitCode.USAGE_ERROR)

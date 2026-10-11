@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
-"""Hardened YAML reading for plan and metadata files.
+"""Hardened YAML reading for plan and model metadata files.
 
 PyYAML's ``SafeLoader`` already refuses Python object tags. This loader adds:
 
@@ -22,7 +22,12 @@ from typing import Any, ClassVar
 
 import yaml
 
-from medagentrx.errors import PlanError
+from medagentrx.errors import MedAgentRxError, PlanError
+
+
+class _LoaderRefusalError(Exception):
+    """Internal signal that a document breaks one of the rules above."""
+
 
 JSONValue = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
 
@@ -43,7 +48,7 @@ class StrictSafeLoader(yaml.SafeLoader):  # type: ignore[misc]  # PyYAML ships n
         event = self.peek_event()
         if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None) is not None:
             line = event.start_mark.line + 1
-            raise PlanError(f"line {line}: YAML anchors and aliases are not allowed")
+            raise _LoaderRefusalError(f"line {line}: YAML anchors and aliases are not allowed")
         return super().compose_node(parent, index)
 
     def construct_mapping(self, node: Any, deep: bool = False) -> Any:  # noqa: ANN401
@@ -55,10 +60,12 @@ class StrictSafeLoader(yaml.SafeLoader):  # type: ignore[misc]  # PyYAML ships n
                 duplicate = key in seen
             except TypeError:
                 line = key_node.start_mark.line + 1
-                raise PlanError(f"line {line}: mapping keys must be plain values") from None
+                raise _LoaderRefusalError(
+                    f"line {line}: mapping keys must be plain values"
+                ) from None
             if duplicate:
                 line = key_node.start_mark.line + 1
-                raise PlanError(f"line {line}: duplicate key '{key}'")
+                raise _LoaderRefusalError(f"line {line}: duplicate key '{key}'")
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
 
@@ -70,28 +77,32 @@ StrictSafeLoader.add_implicit_resolver(
 )
 
 
-def parse_yaml(text: str, *, source: str) -> JSONValue:
+def parse_yaml(text: str, *, source: str, error: type[MedAgentRxError] = PlanError) -> JSONValue:
     """Parse one YAML document into plain JSON-compatible values.
 
     Args:
         text: The YAML text.
         source: Name shown in error messages, usually the file path.
+        error: Exception type to raise.
 
     Returns:
         The parsed document.
 
     Raises:
-        PlanError: If the text is not acceptable YAML.
+        MedAgentRxError: If the text is not acceptable YAML.
     """
     try:
         data = yaml.load(text, Loader=StrictSafeLoader)  # noqa: S506  # strict subclass of SafeLoader
-    except PlanError as exc:
-        raise PlanError(f"{source}: {exc.summary}") from None
+    except _LoaderRefusalError as exc:
+        raise error(f"{source}: {exc}") from None
     except yaml.YAMLError as exc:
-        raise PlanError(f"{source}: not valid YAML", [_describe_yaml_error(exc)]) from None
+        raise error(f"{source}: not valid YAML", [_describe_yaml_error(exc)]) from None
     except RecursionError:
-        raise PlanError(f"{source}: YAML nesting is too deep") from None
-    return to_json(data, path="", source=source)
+        raise error(f"{source}: YAML nesting is too deep") from None
+    try:
+        return to_json(data, path="")
+    except _LoaderRefusalError as exc:
+        raise error(f"{source}: {exc}") from None
 
 
 def _describe_yaml_error(exc: yaml.YAMLError) -> str:
@@ -102,25 +113,25 @@ def _describe_yaml_error(exc: yaml.YAMLError) -> str:
     return str(problem)
 
 
-def to_json(value: object, *, path: str, source: str) -> JSONValue:
+def to_json(value: object, *, path: str) -> JSONValue:
     """Convert parsed YAML into JSON types, rejecting values JSON cannot hold."""
     where = path or "<root>"
     if value is None or isinstance(value, bool | int | str):
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise PlanError(f"{source}: {where}: NaN and infinity are not allowed")
+            raise _LoaderRefusalError(f"{where}: NaN and infinity are not allowed")
         return value
     if isinstance(value, dt.datetime | dt.date):
         return value.isoformat()
     if isinstance(value, list):
-        return [to_json(item, path=f"{path}[{i}]", source=source) for i, item in enumerate(value)]
+        return [to_json(item, path=f"{path}[{i}]") for i, item in enumerate(value)]
     if isinstance(value, dict):
         out: dict[str, JSONValue] = {}
         for key, item in value.items():
             if not isinstance(key, str):
-                raise PlanError(f"{source}: {where}: keys must be strings, found {key!r}")
+                raise _LoaderRefusalError(f"{where}: keys must be strings, found {key!r}")
             child = f"{path}.{key}" if path else key
-            out[key] = to_json(item, path=child, source=source)
+            out[key] = to_json(item, path=child)
         return out
-    raise PlanError(f"{source}: {where}: unsupported YAML type {type(value).__name__}")
+    raise _LoaderRefusalError(f"{where}: unsupported YAML type {type(value).__name__}")

@@ -83,7 +83,7 @@ def test_non_utf8_plan_is_refused(tmp_path: Path) -> None:
 
 
 def test_directory_is_refused(tmp_path: Path) -> None:
-    with pytest.raises(PlanError, match="is a directory"):
+    with pytest.raises(PlanError, match="not a regular file"):
         load_plan(tmp_path)
 
 

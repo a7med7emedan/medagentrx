@@ -14,3 +14,5 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Package scaffold, licensing, linting and continuous integration skeleton.
 - Change-plan model with JSON Schema, hardened YAML loader, and the `validate`, `schema` and `init` commands.
 - Example plan for a synthetic sepsis risk score.
+- CSV and Parquet loaders for predictions, training manifest and model metadata, with size limits and path guards.
+- Canonical locked test-set fingerprint and the `fingerprint` command.
