@@ -66,6 +66,7 @@ class Context:
     n_replicates: int
     now: dt.datetime
     notes: list[str] = field(default_factory=list)
+    outside_plan_failures: list[str] = field(default_factory=list)
 
     @property
     def test_set_is_locked(self) -> bool:
@@ -74,7 +75,13 @@ class Context:
 
     @property
     def performance_blocker(self) -> str | None:
-        """Why performance cannot be assessed, or None when it can."""
+        """Why performance cannot be assessed, or None when it can.
+
+        An update already outside the plan is not evaluated on the locked
+        test set, so it spends no look.
+        """
+        if self.outside_plan_failures:
+            return f"the update is outside the plan ({', '.join(self.outside_plan_failures)})"
         if not self.test_set_is_locked:
             return "the test set is not the locked test set (DATA-001)"
         if self.versions is None:

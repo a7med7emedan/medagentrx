@@ -91,6 +91,8 @@ class Evaluation:
         test_fingerprint: Fingerprint of the candidate's test rows.
         alpha_method: Alpha spending rule of the plan.
         alpha_used: Level used for this evaluation, or None if no test ran.
+        alpha_state: Alpha accounting before this evaluation, or None if the plan was invalid.
+        ledger_entries_before: Ledger entries the budgets were read from.
         touched_test_set: Whether the locked test set was evaluated.
         inputs: SHA-256 of every input file by role.
         seed: Seed used for resampling.
@@ -115,6 +117,8 @@ class Evaluation:
     seed: int
     n_replicates: int
     evaluated_at: dt.datetime
+    alpha_state: AlphaState | None = None
+    ledger_entries_before: int = 0
     tool_version: str = __version__
     notes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -318,7 +322,12 @@ def evaluate(
         n_replicates=n_replicates,
         now=now,
     )
-    findings = [spec.run(ctx) for spec in catalogue()]
+    findings: list[Finding] = []
+    for spec in catalogue():
+        finding = spec.run(ctx)
+        findings.append(finding)
+        if finding.status is Status.FAIL and spec.breaks is Breaks.OUTSIDE_PLAN:
+            ctx.outside_plan_failures.append(spec.check_id)
     touched = ctx.performance_blocker is None
     inputs = {
         role: sha256_file(resolve_input(path, base=base))
@@ -348,6 +357,8 @@ def evaluate(
         seed=seed,
         n_replicates=n_replicates,
         evaluated_at=now,
+        alpha_state=state,
+        ledger_entries_before=history.entries,
         notes=tuple(ctx.notes),
     )
 

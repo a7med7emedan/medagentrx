@@ -34,6 +34,7 @@ class History:
         looks_used: Evaluations that touched the locked test set.
         releases: Accepted updates, oldest first.
         alpha: Alpha state after the last formal evaluation, or None if none yet.
+        entries: Number of ledger entries this summary was read from.
     """
 
     plan_id: str | None = None
@@ -42,3 +43,4 @@ class History:
     looks_used: int = 0
     releases: tuple[Release, ...] = field(default_factory=tuple)
     alpha: AlphaState | None = None
+    entries: int = 0
