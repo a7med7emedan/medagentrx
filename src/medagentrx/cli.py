@@ -141,6 +141,9 @@ def check(
     replicates: Annotated[
         int, typer.Option("--replicates", min=100, help="Bootstrap replicates.")
     ] = 2000,
+    report_format: Annotated[
+        str, typer.Option("--format", help="Report formats, comma separated: html,json,md,junit.")
+    ] = "html,json,md,junit",
     max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
     max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
 ) -> None:
@@ -149,11 +152,12 @@ def check(
     Exit codes: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
     """
     from medagentrx.engine import evaluate
-    from medagentrx.ledger import append, exclusive, load_history
-    from medagentrx.report.json_report import write_json
+    from medagentrx.ledger import append, exclusive, load_history, read_entries
+    from medagentrx.report.writer import parse_formats, write_reports
 
     limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
     try:
+        formats = parse_formats(report_format)
         ledger.parent.mkdir(parents=True, exist_ok=True)
         with exclusive(ledger):
             evaluation = evaluate(
@@ -171,12 +175,14 @@ def check(
             entry = None
             if evaluation.plan_id is not None:
                 entry = append(ledger, evaluation, already_locked=True)
-        ledger_info = None if entry is None else {"seq": entry["seq"], "hash": entry["hash"]}
-        report = write_json(out, evaluation, ledger=ledger_info)
+        written = write_reports(
+            out, evaluation, formats=formats, entry=entry, entries=read_entries(ledger)
+        )
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     _print_summary(evaluation)
-    typer.echo(f"report: {report}")
+    for path in written.values():
+        typer.echo(f"report: {path}")
     if entry is not None:
         typer.echo(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
     raise typer.Exit(evaluation.exit_code)
@@ -269,7 +275,8 @@ def demo(
     Exit codes: 0 every scenario gave its expected verdict, 1 otherwise.
     """
     from medagentrx.demo import SCENARIOS, run_all
-    from medagentrx.report.json_report import write_json
+    from medagentrx.ledger import read_entries
+    from medagentrx.report.writer import write_reports
 
     unknown = [name for name in scenario or [] if name not in SCENARIOS]
     if unknown:
@@ -278,8 +285,11 @@ def demo(
         raise typer.Exit(ExitCode.USAGE_ERROR)
 
     def write(directory: Path, evaluation: Evaluation, entry: dict[str, Any] | None) -> None:
-        ledger = None if entry is None else {"seq": entry["seq"], "hash": entry["hash"]}
-        write_json(directory / "report", evaluation, ledger=ledger)
+        ledger = directory / "ledger.jsonl"
+        if not ledger.exists():
+            ledger = directory.parent / "ledger.jsonl"
+        entries = read_entries(ledger) if ledger.exists() else []
+        write_reports(directory / "report", evaluation, entry=entry, entries=entries)
 
     typer.echo("Synthetic data only. No real patient data is used.")
     results = run_all(out, names=scenario, n_replicates=replicates, on_step=write)

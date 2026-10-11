@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- SPDX-FileCopyrightText: 2026 Ahmed Hemedan -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>MedAgentRx report: {{ r.verdict }} {{ r.plan.id or "" }} {{ r.candidate_version or "" }}</title>
+<style>
+  :root { --teal:#0F766E; --slate:#1E293B; --amber:#F59E0B; --red:#B91C1C; --green:#15803D; --grey:#475569; --light:#F1F5F9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--slate); background: #fff; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 8px; border-bottom: 1px solid var(--light); padding-bottom: 4px; }
+  .banner { border-radius: 10px; padding: 16px 20px; color: #fff; margin: 16px 0; }
+  .banner strong { font-size: 1.6rem; letter-spacing: .02em; display: block; }
+  .ACCEPTED { background: var(--green); }
+  .FAILED { background: var(--red); }
+  .OUTSIDE_PLAN { background: var(--amber); color: var(--slate); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--light); vertical-align: top; }
+  th { background: var(--light); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 600; border: 1px solid currentColor; }
+  .pass { color: var(--green); } .fail { color: var(--red); } .warn { color: #92400E; }
+  .skipped, .not_applicable { color: var(--grey); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+  figure { margin: 16px 0; } figure svg { display: block; max-width: 100%; height: auto; }
+  figcaption { font-size: .85rem; color: var(--grey); }
+  details { margin: 6px 0; } summary { cursor: pointer; }
+  pre { background: var(--light); padding: 8px; overflow-x: auto; font-size: .8rem; }
+  code { font-size: .85rem; }
+  footer { margin-top: 40px; font-size: .85rem; color: var(--grey); border-top: 1px solid var(--light); padding-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+<h1>MedAgentRx change report</h1>
+<p>Plan {{ r.plan.id or "not valid" }}{% if r.plan.revision %} revision {{ r.plan.revision }}{% endif %}. Candidate {{ r.candidate_version or "unknown" }}{% if r.modification_id %} ({{ r.modification_id }}){% endif %}{% if r.previous_version %} replacing {{ r.previous_version }}{% endif %}.</p>
+
+<section class="banner {{ r.verdict }}" aria-label="Verdict">
+  <strong>{{ r.verdict.replace("_", " ") }}</strong>
+  <span>{{ verdict_text }}</span>
+</section>
+
+<h2>Summary</h2>
+<dl>
+  <dt>Evaluated</dt><dd>{{ r.evaluated_at }}</dd>
+  <dt>Failed checks</dt><dd>{{ failed or "none" }}</dd>
+  <dt>Warnings</dt><dd>{{ warnings or "none" }}</dd>
+  <dt>Alpha used</dt><dd>{% if r.alpha.used is not none %}{{ "%.5f"|format(r.alpha.used) }} ({{ r.alpha.method }}){% else %}none; the locked test set was not evaluated{% endif %}</dd>
+  {% for line in deltas %}<dt>{% if loop.first %}Key numbers{% endif %}</dt><dd>{{ line }}</dd>{% endfor %}
+</dl>
+
+<h2>Checks</h2>
+<table>
+  <thead><tr><th>Check</th><th>Status</th><th>Result</th><th>Breaks plan as</th></tr></thead>
+  <tbody>
+  {% for c in r.checks %}
+    <tr><td><a href="#{{ c.id }}">{{ c.id }}</a><br><small>{{ c.title }}</small></td>
+        <td><span class="badge {{ c.status }}">{{ c.status.replace("_", " ") }}</span></td>
+        <td>{{ c.message }}</td><td>{{ c.breaks.replace("_", " ") }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if figures %}
+<h2>Figures</h2>
+{% for f in figures %}
+<figure aria-label="{{ f.alt }}">
+  {{ f.svg | safe }}
+  <figcaption>{{ f.title }}. {{ f.alt }}</figcaption>
+</figure>
+{% endfor %}
+{% endif %}
+
+<h2>Check details</h2>
+{% for c in r.checks %}
+<details id="{{ c.id }}">
+  <summary><strong>{{ c.id }}</strong> {{ c.title }}: <span class="{{ c.status }}">{{ c.status.replace("_", " ") }}</span></summary>
+  <p>{{ c.message }}</p>
+  <p><small>Family {{ c.family }}. Cross-reference: {{ c.cross_reference }}.</small></p>
+  {% if c.details %}<pre>{{ c.details_text }}</pre>{% endif %}
+</details>
+{% endfor %}
+
+{% if ledger_rows %}
+<h2>Ledger excerpt</h2>
+<table>
+  <thead><tr><th>Entry</th><th>Recorded</th><th>Version</th><th>Verdict</th><th>Failed checks</th><th>Hash</th></tr></thead>
+  <tbody>
+  {% for e in ledger_rows %}
+    <tr><td>{{ e.seq }}</td><td>{{ e.recorded_at }}</td><td>{{ e.candidate_version }}</td><td>{{ e.verdict }}</td><td>{{ e.failed }}</td><td><code>{{ e.hash }}</code></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Environment and inputs</h2>
+<dl>
+  <dt>MedAgentRx</dt><dd>{{ r.tool_version }}</dd>
+  {% for name, value in environment %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}
+  <dt>Seed</dt><dd>{{ r.seed }}; {{ r.n_replicates }} bootstrap replicates</dd>
+  <dt>Plan fingerprint</dt><dd><code>{{ r.plan.fingerprint or "none" }}</code></dd>
+  <dt>Test-set fingerprint</dt><dd><code>{{ r.test_fingerprint or "none" }}</code></dd>
+  {% for role, digest in r.inputs.items() %}<dt>{{ role }}</dt><dd><code>{{ digest }}</code></dd>{% endfor %}
+</dl>
+
+<footer>
+  <p>{{ r.disclaimer }}</p>
+  <p>Report schema {{ r.report_schema }}. Produced by MedAgentRx {{ r.tool_version }}.</p>
+</footer>
+</main>
+</body>
+</html>

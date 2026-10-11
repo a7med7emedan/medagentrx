@@ -18,10 +18,10 @@ from medagentrx.checks.registry import Breaks, Family, Finding, Status, check
 from medagentrx.errors import StatsError
 from medagentrx.plan.models import NonInferiorityCriterion, WithinCriterion
 from medagentrx.stats._common import norm_ppf
-from medagentrx.stats.calibration import calibration
+from medagentrx.stats.calibration import CalibrationCurve, binned_curve, calibration
 from medagentrx.stats.delong import PairedAucTest, auc_ci, delong, paired_test_from
 from medagentrx.stats.multiplicity import bonferroni, holm
-from medagentrx.stats.net_benefit import net_benefit_difference
+from medagentrx.stats.net_benefit import decision_curve, net_benefit_difference
 from medagentrx.stats.power import analytic_power
 from medagentrx.stats.proportions import paired_proportion_test
 
@@ -39,6 +39,10 @@ def skipped(check_id: str, ctx: Context) -> Finding | None:
 
 def _as_dict(result: object) -> dict[str, Any]:
     return dataclasses.asdict(result)  # type: ignore[call-overload,no-any-return]
+
+
+def _curve(curve: CalibrationCurve) -> dict[str, list[float]]:
+    return {"predicted": curve.predicted.tolist(), "observed": curve.observed.tolist()}
 
 
 def _criteria(ctx: Context, metrics: tuple[str, ...]) -> list[NonInferiorityCriterion]:
@@ -179,6 +183,10 @@ def calibration_bounds(ctx: Context) -> Finding:
         "candidate": _as_dict(candidate),
         "previous": previous,
         "bounds": {c.metric: list(c.bounds) for c in criteria},
+        "curve": {
+            name: _curve(binned_curve(v.candidate.y_true, preds.y_score))
+            for name, preds in (("candidate", v.candidate), ("previous", v.previous))
+        },
     }
     if outside:
         return Finding("PERF-003", Status.FAIL, "Miscalibrated: " + "; ".join(outside), details)
@@ -186,7 +194,7 @@ def calibration_bounds(ctx: Context) -> Finding:
         "PERF-003",
         Status.PASS,
         f"Calibration within bounds (slope {candidate.slope:.3f}, "
-        f"intercept {candidate.intercept:+.3f})",
+        f"intercept {round(candidate.intercept, 3) + 0.0:+.3f})",
         details,
     )
 
@@ -237,7 +245,23 @@ def net_benefit_non_inferior(ctx: Context) -> Finding:
                 }
                 if not ok:
                     failed.append(f"t={t:g} vs {comparator} (lower {lower:+.4f})")
-    details = {"level": level, "replicates": ctx.n_replicates, "seed": ctx.seed, "tests": results}
+    grid = [round(0.01 * i, 2) for i in range(1, 51)]
+    curve = {
+        "thresholds": grid,
+        "candidate": decision_curve(v.candidate.y_true, v.candidate.y_score, grid).model.tolist(),
+        "previous": decision_curve(v.candidate.y_true, v.previous.y_score, grid).model.tolist(),
+        "treat_all": decision_curve(
+            v.candidate.y_true, v.candidate.y_score, grid
+        ).treat_all.tolist(),
+        "plan_thresholds": sorted({t for c in criteria for t in c.at_thresholds or []}),
+    }
+    details = {
+        "level": level,
+        "replicates": ctx.n_replicates,
+        "seed": ctx.seed,
+        "tests": results,
+        "curve": curve,
+    }
     if failed:
         return Finding(
             "PERF-004", Status.FAIL, "Net benefit inferior at " + ", ".join(failed), details
