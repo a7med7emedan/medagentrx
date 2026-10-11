@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["uv_build>=0.12,<0.14"]
+build-backend = "uv_build"
+
+[project]
+name = "medagentrx"
+version = "0.1.0.dev0"
+description = "The prescription for self-improving medical AI. Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4))."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Ahmed Hemedan" }]
+maintainers = [{ name = "Ahmed Hemedan" }]
+keywords = [
+    "medagentrx",
+    "agentic-ai",
+    "ai-agents",
+    "ai-safety",
+    "agent-guardrails",
+    "automl",
+    "pccp",
+    "predetermined-change-control-plan",
+    "samd",
+    "medical-device-software",
+    "fda",
+    "eu-ai-act",
+    "mdr",
+    "regulatory-science",
+    "model-governance",
+    "clinical-ai",
+    "clinical-prediction-models",
+    "mlops",
+    "continuous-learning",
+    "model-validation",
+    "non-inferiority",
+    "calibration",
+    "fairness",
+    "decision-curve-analysis",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer>=0.15",
+    "pydantic>=2.10",
+    "pyyaml>=6.0.2",
+    "jsonschema>=4.23",
+    "numpy>=2.2",
+    "pyarrow>=19",
+]
+
+[project.optional-dependencies]
+web = []
+
+[project.scripts]
+medagentrx = "medagentrx.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/a7med7emedan/medagentrx"
+Source = "https://github.com/a7med7emedan/medagentrx"
+Issues = "https://github.com/a7med7emedan/medagentrx/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.120",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "reuse[charset-normalizer]>=6.0",
+    "pre-commit>=4.0",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "B", "UP", "S", "N", "C4", "SIM", "RUF", "PT", "RET", "PTH", "ANN", "D",
+]
+ignore = ["D203", "D213", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src", "tests"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*", "jsonschema", "jsonschema.*", "pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--cov", "--cov-report=term-missing"]
+markers = ["slow: long statistical validation runs, nightly and before release"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["medagentrx"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", '^\s*\.\.\.$']

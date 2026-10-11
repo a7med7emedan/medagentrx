@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
+stages:
+  - lint
+  - test
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+variables:
+  UV_LINK_MODE: copy
+  UV_CACHE_DIR: .uv-cache
+
+cache:
+  key:
+    files: [uv.lock]
+  paths: [.uv-cache]
+
+lint:
+  stage: lint
+  script:
+    - uv sync --locked
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run mypy
+    - uv run reuse lint
+
+test:
+  stage: test
+  parallel:
+    matrix:
+      - PYTHON: ["3.11", "3.12", "3.13"]
+  image: ghcr.io/astral-sh/uv:python${PYTHON}-bookworm-slim
+  script:
+    - uv sync --locked
+    - uv run pytest

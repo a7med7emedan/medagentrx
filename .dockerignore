@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
+.git
+.venv
+.env
+.env.*
+data/
+out/
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.hypothesis
+.coverage*
+htmlcov
+site
