@@ -1,0 +1,882 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:medagentrx:change-plan:1.0",
+  "$defs": {
+    "AllCondition": {
+      "additionalProperties": false,
+      "description": "True when every inner condition is true.",
+      "properties": {
+        "all": {
+          "description": "Conditions that must all hold.",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/LeafCondition"
+              },
+              {
+                "$ref": "#/$defs/AllCondition"
+              },
+              {
+                "$ref": "#/$defs/AnyCondition"
+              },
+              {
+                "$ref": "#/$defs/NotCondition"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "All",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "title": "AllCondition",
+      "type": "object"
+    },
+    "AnyCondition": {
+      "additionalProperties": false,
+      "description": "True when at least one inner condition is true.",
+      "properties": {
+        "any": {
+          "description": "Conditions of which at least one must hold.",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/LeafCondition"
+              },
+              {
+                "$ref": "#/$defs/AllCondition"
+              },
+              {
+                "$ref": "#/$defs/AnyCondition"
+              },
+              {
+                "$ref": "#/$defs/NotCondition"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Any",
+          "type": "array"
+        }
+      },
+      "required": [
+        "any"
+      ],
+      "title": "AnyCondition",
+      "type": "object"
+    },
+    "CumulativeDrift": {
+      "additionalProperties": false,
+      "description": "Bio-creep guard: the candidate is always compared with the anchor.",
+      "properties": {
+        "metric": {
+          "const": "auroc",
+          "description": "Metric tracked against the anchor.",
+          "title": "Metric",
+          "type": "string"
+        },
+        "max_drop_vs_anchor": {
+          "description": "Largest allowed drop below the anchor (CI lower bound).",
+          "exclusiveMaximum": 1.0,
+          "minimum": 0.0,
+          "title": "Max Drop Vs Anchor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "max_drop_vs_anchor"
+      ],
+      "title": "CumulativeDrift",
+      "type": "object"
+    },
+    "DataManagement": {
+      "additionalProperties": false,
+      "description": "FDA Modification Protocol, element 1: data management.",
+      "properties": {
+        "training_inclusion": {
+          "description": "Condition every row of the training manifest must meet.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LeafCondition"
+            },
+            {
+              "$ref": "#/$defs/AllCondition"
+            },
+            {
+              "$ref": "#/$defs/AnyCondition"
+            },
+            {
+              "$ref": "#/$defs/NotCondition"
+            }
+          ],
+          "title": "Training Inclusion"
+        },
+        "locked_test_set": {
+          "$ref": "#/$defs/LockedTestSet",
+          "description": "The locked test set."
+        },
+        "forbid_overlap_on": {
+          "description": "Keys that must never be shared by training and test rows.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Forbid Overlap On",
+          "type": "array"
+        }
+      },
+      "required": [
+        "training_inclusion",
+        "locked_test_set",
+        "forbid_overlap_on"
+      ],
+      "title": "DataManagement",
+      "type": "object"
+    },
+    "ImpactAssessment": {
+      "additionalProperties": false,
+      "description": "FDA third component: benefits and risks of the planned modifications.",
+      "properties": {
+        "benefits": {
+          "description": "Expected benefits.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Benefits",
+          "type": "string"
+        },
+        "risks": {
+          "description": "Risks and mitigations.",
+          "items": {
+            "$ref": "#/$defs/Risk"
+          },
+          "minItems": 1,
+          "title": "Risks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "benefits",
+        "risks"
+      ],
+      "title": "ImpactAssessment",
+      "type": "object"
+    },
+    "LeafCondition": {
+      "additionalProperties": false,
+      "description": "A single comparison of one field against a literal value.",
+      "properties": {
+        "field": {
+          "description": "Column name in the training data manifest.",
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "description": "Comparison operator from a closed list.",
+          "enum": [
+            "eq",
+            "ne",
+            "lt",
+            "le",
+            "gt",
+            "ge",
+            "in",
+            "not_in",
+            "between",
+            "is_null",
+            "not_null"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Literal operand. A scalar for eq, ne, lt, le, gt, ge. A list for in and not_in. Two ordered values for between. Absent for is_null and not_null. Dates are written as YYYY-MM-DD strings.",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "LeafCondition",
+      "type": "object"
+    },
+    "LockedTestSet": {
+      "additionalProperties": false,
+      "description": "The sequestered test set every update is evaluated on.",
+      "properties": {
+        "sha256": {
+          "description": "Canonical fingerprint of the test set, from `medagentrx fingerprint`.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "max_evaluations": {
+          "description": "Looks at the locked test set allowed over the life of the plan.",
+          "minimum": 1,
+          "title": "Max Evaluations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "max_evaluations"
+      ],
+      "title": "LockedTestSet",
+      "type": "object"
+    },
+    "Modification": {
+      "additionalProperties": false,
+      "description": "One pre-specified modification (FDA Description of Modifications).",
+      "properties": {
+        "id": {
+          "description": "Identifier referenced by model metadata.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Kind of change. A new architecture is never covered by a plan.",
+          "enum": [
+            "retrain_same_architecture",
+            "recalibrate",
+            "fine_tune"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "automatic": {
+          "description": "True if a pipeline or agent may trigger the change without a human.",
+          "title": "Automatic",
+          "type": "boolean"
+        },
+        "scope": {
+          "description": "global: the same model for all sites. local: adapted per site.",
+          "enum": [
+            "global",
+            "local"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional free-text description of the modification.",
+          "title": "Description"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "automatic",
+        "scope"
+      ],
+      "title": "Modification",
+      "type": "object"
+    },
+    "NonInferiorityCriterion": {
+      "additionalProperties": false,
+      "description": "The candidate must not be worse than a comparator by more than a margin.",
+      "properties": {
+        "metric": {
+          "description": "Metric compared between the candidate and each comparator.",
+          "enum": [
+            "auroc",
+            "sensitivity_at_threshold",
+            "specificity_at_threshold",
+            "net_benefit"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "test": {
+          "const": "non_inferiority",
+          "description": "Paired non-inferiority test.",
+          "title": "Test",
+          "type": "string"
+        },
+        "vs": {
+          "description": "Comparators: the previous version, the anchor, or both.",
+          "items": {
+            "enum": [
+              "previous",
+              "anchor"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Vs",
+          "type": "array"
+        },
+        "margin": {
+          "description": "Non-inferiority margin on the metric.",
+          "exclusiveMaximum": 1.0,
+          "minimum": 0.0,
+          "title": "Margin",
+          "type": "number"
+        },
+        "at_thresholds": {
+          "anyOf": [
+            {
+              "items": {
+                "exclusiveMaximum": 1.0,
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Risk thresholds for net_benefit. Required for that metric only.",
+          "title": "At Thresholds"
+        }
+      },
+      "required": [
+        "metric",
+        "test",
+        "vs",
+        "margin"
+      ],
+      "title": "NonInferiorityCriterion",
+      "type": "object"
+    },
+    "NotCondition": {
+      "additionalProperties": false,
+      "description": "True when the inner condition is false.",
+      "properties": {
+        "not": {
+          "description": "Condition that must not hold.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LeafCondition"
+            },
+            {
+              "$ref": "#/$defs/AllCondition"
+            },
+            {
+              "$ref": "#/$defs/AnyCondition"
+            },
+            {
+              "$ref": "#/$defs/NotCondition"
+            }
+          ],
+          "title": "Not"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "title": "NotCondition",
+      "type": "object"
+    },
+    "Performance": {
+      "additionalProperties": false,
+      "description": "FDA Modification Protocol, element 3: performance evaluation.",
+      "properties": {
+        "alpha_total": {
+          "description": "Family-wise error rate across all updates under this plan.",
+          "exclusiveMaximum": 1.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Alpha Total",
+          "type": "number"
+        },
+        "alpha_spending": {
+          "description": "How alpha_total is spent across updates.",
+          "enum": [
+            "bonferroni",
+            "alpha_investing"
+          ],
+          "title": "Alpha Spending",
+          "type": "string"
+        },
+        "operating_threshold": {
+          "description": "Risk threshold at which sensitivity and specificity are assessed.",
+          "exclusiveMaximum": 1.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Operating Threshold",
+          "type": "number"
+        },
+        "criteria": {
+          "description": "Acceptance criteria.",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/NonInferiorityCriterion"
+              },
+              {
+                "$ref": "#/$defs/WithinCriterion"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        },
+        "cumulative_drift": {
+          "$ref": "#/$defs/CumulativeDrift",
+          "description": "Bio-creep guard against the anchor."
+        },
+        "subgroups": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Subgroups"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Subgroup criterion."
+        },
+        "power": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Power"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Power requirement."
+        }
+      },
+      "required": [
+        "alpha_total",
+        "alpha_spending",
+        "operating_threshold",
+        "criteria",
+        "cumulative_drift"
+      ],
+      "title": "Performance",
+      "type": "object"
+    },
+    "PlanHeader": {
+      "additionalProperties": false,
+      "description": "Identity of the authorised plan.",
+      "properties": {
+        "id": {
+          "description": "Stable identifier of the plan.",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Plan revision. Any change to the plan itself must bump this.",
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "authorised": {
+          "description": "Date the plan was authorised, as YYYY-MM-DD.",
+          "format": "date",
+          "title": "Authorised",
+          "type": "string"
+        },
+        "device": {
+          "description": "Name of the device or model the plan governs.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Device",
+          "type": "string"
+        },
+        "intended_use_sha256": {
+          "description": "SHA-256 of the intended-use statement. A change means a new intended use.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Intended Use Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "authorised",
+        "device",
+        "intended_use_sha256"
+      ],
+      "title": "PlanHeader",
+      "type": "object"
+    },
+    "Power": {
+      "additionalProperties": false,
+      "description": "Power requirement for the locked test set.",
+      "properties": {
+        "min_power": {
+          "description": "Warn when power to detect the margin is lower.",
+          "exclusiveMaximum": 1.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Min Power",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_power"
+      ],
+      "title": "Power",
+      "type": "object"
+    },
+    "RegulatoryMap": {
+      "additionalProperties": false,
+      "description": "Informative cross-reference, rendered in the plan document.",
+      "properties": {
+        "fda": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "FDA reference.",
+          "title": "Fda"
+        },
+        "eu": {
+          "description": "EU references.",
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Eu",
+          "type": "array"
+        }
+      },
+      "title": "RegulatoryMap",
+      "type": "object"
+    },
+    "Risk": {
+      "additionalProperties": false,
+      "description": "One risk of the planned modifications and its mitigation.",
+      "properties": {
+        "risk": {
+          "description": "The risk.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Risk",
+          "type": "string"
+        },
+        "mitigation": {
+          "description": "How the plan mitigates it.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Mitigation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "risk",
+        "mitigation"
+      ],
+      "title": "Risk",
+      "type": "object"
+    },
+    "Subgroups": {
+      "additionalProperties": false,
+      "description": "Subgroup criterion applied to every level of every listed column.",
+      "properties": {
+        "by": {
+          "description": "Subgroup columns in the prediction files.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "By",
+          "type": "array"
+        },
+        "metric": {
+          "const": "auroc",
+          "description": "Metric compared within each subgroup.",
+          "title": "Metric",
+          "type": "string"
+        },
+        "max_drop": {
+          "description": "Largest allowed drop in any subgroup.",
+          "exclusiveMaximum": 1.0,
+          "minimum": 0.0,
+          "title": "Max Drop",
+          "type": "number"
+        },
+        "min_events": {
+          "description": "Positives and negatives each needed, else insufficient evidence.",
+          "minimum": 1,
+          "title": "Min Events",
+          "type": "integer"
+        },
+        "on_insufficient": {
+          "description": "What an insufficient-evidence subgroup does to the verdict.",
+          "enum": [
+            "fail",
+            "warn"
+          ],
+          "title": "On Insufficient",
+          "type": "string"
+        },
+        "multiplicity": {
+          "description": "Correction across subgroups.",
+          "enum": [
+            "holm",
+            "bonferroni"
+          ],
+          "title": "Multiplicity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "by",
+        "metric",
+        "max_drop",
+        "min_events",
+        "on_insufficient",
+        "multiplicity"
+      ],
+      "title": "Subgroups",
+      "type": "object"
+    },
+    "UpdateFrequency": {
+      "additionalProperties": false,
+      "description": "How often updates may be released.",
+      "properties": {
+        "max_per": {
+          "description": "Calendar period.",
+          "enum": [
+            "month",
+            "quarter",
+            "year"
+          ],
+          "title": "Max Per",
+          "type": "string"
+        },
+        "count": {
+          "description": "Maximum number of updates in each period.",
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_per",
+        "count"
+      ],
+      "title": "UpdateFrequency",
+      "type": "object"
+    },
+    "UpdateProcedures": {
+      "additionalProperties": false,
+      "description": "FDA Modification Protocol, element 4: update procedures.",
+      "properties": {
+        "require_model_card_update": {
+          "description": "True if each release must update the model card.",
+          "title": "Require Model Card Update",
+          "type": "boolean"
+        },
+        "user_communication": {
+          "description": "How users are told about an update.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "User Communication",
+          "type": "string"
+        },
+        "real_world_monitoring": {
+          "description": "How performance is monitored after release.",
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Real World Monitoring",
+          "type": "string"
+        }
+      },
+      "required": [
+        "require_model_card_update",
+        "user_communication",
+        "real_world_monitoring"
+      ],
+      "title": "UpdateProcedures",
+      "type": "object"
+    },
+    "WithinCriterion": {
+      "additionalProperties": false,
+      "description": "The candidate's metric must lie inside fixed bounds.",
+      "properties": {
+        "metric": {
+          "description": "Calibration measure of the candidate on the locked test set.",
+          "enum": [
+            "calibration_slope",
+            "calibration_intercept"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "test": {
+          "const": "within",
+          "description": "Bounds test on the candidate alone.",
+          "title": "Test",
+          "type": "string"
+        },
+        "bounds": {
+          "description": "Inclusive lower and upper bound.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bounds",
+          "type": "array"
+        }
+      },
+      "required": [
+        "metric",
+        "test",
+        "bounds"
+      ],
+      "title": "WithinCriterion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An approved change plan (FDA PCCP, EU AI Act Art. 43(4)). Every model update is checked against it.",
+  "properties": {
+    "pccp_version": {
+      "const": "1.0",
+      "description": "Version of this file format.",
+      "title": "Pccp Version",
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/PlanHeader",
+      "description": "Identity, revision and authorisation of the plan."
+    },
+    "anchor_version": {
+      "description": "The originally authorised model version. It never changes.",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Anchor Version",
+      "type": "string"
+    },
+    "max_updates": {
+      "description": "Updates allowed under this plan.",
+      "minimum": 1,
+      "title": "Max Updates",
+      "type": "integer"
+    },
+    "update_frequency": {
+      "$ref": "#/$defs/UpdateFrequency",
+      "description": "Release frequency limit."
+    },
+    "modifications": {
+      "description": "FDA Description of Modifications.",
+      "items": {
+        "$ref": "#/$defs/Modification"
+      },
+      "minItems": 1,
+      "title": "Modifications",
+      "type": "array"
+    },
+    "data_management": {
+      "$ref": "#/$defs/DataManagement",
+      "description": "Modification Protocol, data management."
+    },
+    "performance": {
+      "$ref": "#/$defs/Performance",
+      "description": "Modification Protocol, performance evaluation."
+    },
+    "update_procedures": {
+      "$ref": "#/$defs/UpdateProcedures",
+      "description": "Modification Protocol, update procedures."
+    },
+    "impact_assessment": {
+      "$ref": "#/$defs/ImpactAssessment",
+      "description": "FDA Impact Assessment."
+    },
+    "regulatory_map": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegulatoryMap"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Informative regulatory cross-reference."
+    }
+  },
+  "required": [
+    "pccp_version",
+    "plan",
+    "anchor_version",
+    "max_updates",
+    "update_frequency",
+    "modifications",
+    "data_management",
+    "performance",
+    "update_procedures",
+    "impact_assessment"
+  ],
+  "title": "MedAgentRx change plan",
+  "type": "object"
+}

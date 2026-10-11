@@ -1,0 +1,1 @@
+Sepsis risk score v2 estimates the probability that an adult inpatient develops sepsis within 48 hours of the score being computed. It supports clinicians in prioritising assessment. It does not diagnose sepsis and does not replace clinical judgement.

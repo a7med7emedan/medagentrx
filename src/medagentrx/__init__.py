@@ -9,4 +9,14 @@ or OUTSIDE_PLAN.
 
 __version__ = "0.1.0.dev0"
 
-__all__ = ["__version__"]
+from medagentrx.errors import InputError, MedAgentRxError, PlanError
+from medagentrx.plan import ChangePlan, load_plan
+
+__all__ = [
+    "ChangePlan",
+    "InputError",
+    "MedAgentRxError",
+    "PlanError",
+    "__version__",
+    "load_plan",
+]
