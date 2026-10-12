@@ -1,0 +1,144 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
+name: MedAgentRx check
+description: >-
+  Check every model update, by an engineer, a pipeline or an AI agent, against its approved
+  change plan (FDA PCCP, EU AI Act Art. 43(4)). Fails on FAILED or OUTSIDE_PLAN.
+author: Ahmed Hemedan
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  plan:
+    description: Path to change-plan.yaml.
+    required: true
+  candidate:
+    description: Candidate predictions on the locked test set (Parquet or CSV).
+    required: true
+  previous:
+    description: Predictions of the version being replaced.
+    required: true
+  anchor:
+    description: Predictions of the originally authorised version.
+    required: true
+  manifest:
+    description: Training data manifest of the candidate.
+    required: true
+  model-meta:
+    description: model.yaml of the candidate.
+    required: true
+  ledger:
+    description: Decision ledger. It must persist between runs, for example committed to the repository.
+    required: true
+  out:
+    description: Directory for the reports, relative to the workspace.
+    default: medagentrx-report
+  seed:
+    description: Seed for every resampling step.
+    default: "0"
+  replicates:
+    description: Bootstrap replicates.
+    default: "2000"
+  format:
+    description: Report formats, comma separated.
+    default: html,json,md,junit
+  image:
+    description: >-
+      MedAgentRx container image, pinned by digest. Empty builds the image from this action's
+      Dockerfile.
+    default: ""
+  comment:
+    description: Post the summary as a pull request comment ("true" or "false").
+    default: "false"
+  github-token:
+    description: Token used to post the pull request comment.
+    default: ${{ github.token }}
+  artifact-name:
+    description: Name of the uploaded report artifact.
+    default: medagentrx-report
+
+outputs:
+  verdict:
+    description: ACCEPTED, FAILED, OUTSIDE_PLAN or ERROR.
+    value: ${{ steps.check.outputs.verdict }}
+  exit-code:
+    description: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
+    value: ${{ steps.check.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build the MedAgentRx image
+      if: inputs.image == ''
+      shell: bash
+      run: docker build --quiet --tag medagentrx-action:local "$GITHUB_ACTION_PATH"
+
+    - name: Check the update against its plan
+      id: check
+      shell: bash
+      env:
+        MEDAGENTRX_IMAGE: ${{ inputs.image }}
+        PLAN: ${{ inputs.plan }}
+        CANDIDATE: ${{ inputs.candidate }}
+        PREVIOUS: ${{ inputs.previous }}
+        ANCHOR: ${{ inputs.anchor }}
+        MANIFEST: ${{ inputs.manifest }}
+        MODEL_META: ${{ inputs.model-meta }}
+        LEDGER: ${{ inputs.ledger }}
+        OUT: ${{ inputs.out }}
+        SEED: ${{ inputs.seed }}
+        REPLICATES: ${{ inputs.replicates }}
+        FORMAT: ${{ inputs.format }}
+      run: |
+        image="${MEDAGENTRX_IMAGE:-medagentrx-action:local}"
+        set +e
+        docker run --rm --read-only --tmpfs /tmp --network none \
+          --user "$(id -u):$(id -g)" \
+          --volume "$GITHUB_WORKSPACE:/work" --workdir /work \
+          "$image" check "$PLAN" \
+          --candidate "$CANDIDATE" --previous "$PREVIOUS" --anchor "$ANCHOR" \
+          --manifest "$MANIFEST" --model-meta "$MODEL_META" --ledger "$LEDGER" \
+          --out "$OUT" --seed "$SEED" --replicates "$REPLICATES" --format "$FORMAT"
+        code=$?
+        set -e
+        case "$code" in
+          0) verdict=ACCEPTED ;;
+          1) verdict=FAILED ;;
+          2) verdict=OUTSIDE_PLAN ;;
+          *) verdict=ERROR ;;
+        esac
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        if [ -f "$OUT/summary.md" ]; then
+          cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "MedAgentRx: $verdict (exit code $code)" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: Comment on the pull request
+      if: always() && inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        OUT: ${{ inputs.out }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        if [ -f "$OUT/summary.md" ]; then
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$OUT/summary.md"
+        fi
+
+    - name: Upload the report
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.out }}
+        if-no-files-found: warn
+
+    - name: Fail unless the update was accepted
+      shell: bash
+      env:
+        CODE: ${{ steps.check.outputs.exit-code }}
+      run: exit "$CODE"

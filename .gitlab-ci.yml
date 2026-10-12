@@ -5,6 +5,21 @@ stages:
   - lint
   - test
   - reference
+  - integration
+
+include:
+  - local: templates/medagentrx.yml
+    inputs:
+      stage: integration
+      job-name: component-example
+      image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+      plan: examples/sepsis-risk/change-plan.yaml
+      candidate: examples/sepsis-risk/candidate.parquet
+      previous: examples/sepsis-risk/previous.parquet
+      anchor: examples/sepsis-risk/anchor.parquet
+      manifest: examples/sepsis-risk/train_manifest.parquet
+      model-meta: examples/sepsis-risk/model.yaml
+      ledger: medagentrx-ledger/ledger.jsonl
 
 default:
   image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
@@ -49,3 +64,13 @@ reference-proc:
     - uv run python -c "import json; a=json.load(open('/tmp/expected.committed.json'))['datasets']; b=json.load(open('tests/reference/pROC/expected.json'))['datasets']; assert all(abs(b[d][k]-v)<1e-10 for d in a for k,v in a[d].items()); print('pROC reference values unchanged')"
     - uv sync --locked
     - uv run pytest tests/reference --no-cov
+
+component-example:
+  before_script:
+    - uv pip install --system .
+
+pre-commit-hook:
+  stage: integration
+  script:
+    - uv sync --locked
+    - uv run pre-commit try-repo . medagentrx-validate --files examples/sepsis-risk/change-plan.yaml

@@ -80,22 +80,34 @@ def schema() -> None:
 
 @app.command()
 def validate(
-    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    plans: Annotated[
+        list[Path], typer.Argument(help="One or more change-plan.yaml files.", metavar="PLAN...")
+    ],
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Also print the plan fingerprint.")
     ] = False,
 ) -> None:
-    """Check a change plan against the schema and its own logic."""
-    try:
-        loaded = load_plan_with_warnings(plan)
-    except MedAgentRxError as exc:
-        raise _fail(exc) from None
-    header = loaded.plan.plan
-    typer.echo(f"valid: {header.id} revision {header.revision}")
-    for warning in loaded.warnings:
-        typer.echo(f"warning: {warning}")
-    if verbose:
-        typer.echo(f"plan fingerprint: {plan_fingerprint(loaded.plan)}")
+    """Check change plans against the schema and their own logic.
+
+    Exit codes: 0 every plan is valid, 3 at least one is not.
+    """
+    failed = False
+    for plan in plans:
+        prefix = f"{plan}: " if len(plans) > 1 else ""
+        try:
+            loaded = load_plan_with_warnings(plan)
+        except MedAgentRxError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            failed = True
+            continue
+        header = loaded.plan.plan
+        typer.echo(f"{prefix}valid: {header.id} revision {header.revision}")
+        for warning in loaded.warnings:
+            typer.echo(f"{prefix}warning: {warning}")
+        if verbose:
+            typer.echo(f"{prefix}plan fingerprint: {plan_fingerprint(loaded.plan)}")
+    if failed:
+        raise typer.Exit(ExitCode.USAGE_ERROR)
 
 
 MaxFileBytesOption = Annotated[

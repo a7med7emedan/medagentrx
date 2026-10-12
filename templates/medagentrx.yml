@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# GitLab CI/CD component: check a model update against its approved change plan.
+#
+# include:
+#   - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@<version>
+#     inputs:
+#       image: <registry>/medagentrx@sha256:<digest>
+#       plan: change-plan.yaml
+#       candidate: predictions/candidate.parquet
+#       ...
+
+spec:
+  inputs:
+    stage:
+      description: Pipeline stage of the job.
+      default: test
+    job-name:
+      description: Name of the job.
+      default: medagentrx-check
+    image:
+      description: MedAgentRx container image, pinned by digest.
+    plan:
+      description: Path to change-plan.yaml.
+    candidate:
+      description: Candidate predictions on the locked test set (Parquet or CSV).
+    previous:
+      description: Predictions of the version being replaced.
+    anchor:
+      description: Predictions of the originally authorised version.
+    manifest:
+      description: Training data manifest of the candidate.
+    model-meta:
+      description: model.yaml of the candidate.
+    ledger:
+      description: Decision ledger. It must persist between pipelines.
+    out:
+      description: Directory for the reports.
+      default: medagentrx-report
+    seed:
+      description: Seed for every resampling step.
+      type: number
+      default: 0
+    replicates:
+      description: Bootstrap replicates.
+      type: number
+      default: 2000
+---
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image:
+    name: $[[ inputs.image ]]
+    entrypoint: [""]
+  variables:
+    MPLCONFIGDIR: /tmp/matplotlib
+  script:
+    - >-
+      medagentrx check "$[[ inputs.plan ]]"
+      --candidate "$[[ inputs.candidate ]]"
+      --previous "$[[ inputs.previous ]]"
+      --anchor "$[[ inputs.anchor ]]"
+      --manifest "$[[ inputs.manifest ]]"
+      --model-meta "$[[ inputs.model-meta ]]"
+      --ledger "$[[ inputs.ledger ]]"
+      --out "$[[ inputs.out ]]"
+      --seed $[[ inputs.seed ]]
+      --replicates $[[ inputs.replicates ]]
+  artifacts:
+    when: always
+    expire_in: 90 days
+    paths:
+      - $[[ inputs.out ]]/
+      - $[[ inputs.ledger ]]
+      - $[[ inputs.ledger ]].head
+    reports:
+      junit: $[[ inputs.out ]]/junit.xml

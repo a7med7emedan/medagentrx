@@ -28,6 +28,14 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run reuse lint
+      - name: actionlint
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667  # 1.7.12
+        with:
+          args: -color
+      - name: hadolint
+        uses: docker://hadolint/hadolint@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d  # v2.15.1
+        with:
+          args: hadolint Dockerfile
 
   test:
     strategy:
@@ -75,3 +83,36 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
       - run: uv sync --locked
       - run: uv run pytest tests/reference --no-cov
+
+  action-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run this repository's action on the example
+        id: medagentrx
+        uses: ./
+        with:
+          plan: examples/sepsis-risk/change-plan.yaml
+          candidate: examples/sepsis-risk/candidate.parquet
+          previous: examples/sepsis-risk/previous.parquet
+          anchor: examples/sepsis-risk/anchor.parquet
+          manifest: examples/sepsis-risk/train_manifest.parquet
+          model-meta: examples/sepsis-risk/model.yaml
+          ledger: medagentrx-ledger/ledger.jsonl
+      - name: The example must be accepted
+        env:
+          VERDICT: ${{ steps.medagentrx.outputs.verdict }}
+        run: test "$VERDICT" = ACCEPTED
+
+  pre-commit-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+      - run: uv sync --locked
+      - name: Run the medagentrx-validate hook on the example plan
+        run: uv run pre-commit try-repo . medagentrx-validate --files examples/sepsis-risk/change-plan.yaml
