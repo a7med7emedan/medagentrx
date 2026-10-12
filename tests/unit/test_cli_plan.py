@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from medagentrx.cli import app, run
@@ -261,3 +262,33 @@ class _ClosedInput:
 
     def isatty(self) -> bool:
         return False
+
+
+def test_validate_many_plans(
+    example_plan_data: Data, write_plan: Callable[[object], Path], tmp_path: Path
+) -> None:
+    other = tmp_path / "other" / "change-plan.yaml"
+    other.parent.mkdir()
+    other.write_text(EXAMPLE_PLAN.read_text(encoding="utf-8"), encoding="utf-8")
+    good = runner.invoke(app, ["validate", str(EXAMPLE_PLAN), str(other)])
+    assert good.exit_code == 0
+    assert good.output.count("valid: SEPSIS-RISK-PCCP revision 3") == 2
+    assert f"{other}: valid" in good.output
+    example_plan_data["max_updates"] = 0
+    bad = runner.invoke(app, ["validate", str(EXAMPLE_PLAN), str(write_plan(example_plan_data))])
+    assert bad.exit_code == ExitCode.USAGE_ERROR
+    assert "valid: SEPSIS-RISK-PCCP" in bad.output
+    assert "max_updates" in bad.output
+
+
+def test_pre_commit_hook_definition() -> None:
+    import re
+
+    hooks = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
+    (hook,) = hooks
+    assert hook["id"] == "medagentrx-validate"
+    assert hook["entry"] == "medagentrx validate"
+    pattern = re.compile(hook["files"])
+    assert pattern.search("examples/sepsis-risk/change-plan.yaml")
+    assert pattern.search("change-plan.prod.yml")
+    assert not pattern.search("docs/plan.yaml")

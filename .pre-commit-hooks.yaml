@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# Use from another repository:
+#   - repo: https://github.com/a7med7emedan/medagentrx
+#     rev: v0.1.0
+#     hooks:
+#       - id: medagentrx-validate
+
+- id: medagentrx-validate
+  name: Validate MedAgentRx change plans
+  description: Check change-plan.yaml files against the MedAgentRx schema and its logic rules.
+  entry: medagentrx validate
+  language: python
+  files: (^|/)change-plan[^/]*\.ya?ml$
+  types: [yaml]
+  require_serial: true

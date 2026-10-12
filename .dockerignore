@@ -1,17 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
 
-.git
-.venv
-.env
-.env.*
-data/
-out/
+# Only pyproject.toml, uv.lock, README.md, LICENSE, NOTICE and src/ are needed.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!NOTICE
+!src/
 **/__pycache__
-.mypy_cache
-.ruff_cache
-.pytest_cache
-.hypothesis
-.coverage*
-htmlcov
-site
+**/*.pyc

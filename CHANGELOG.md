@@ -24,3 +24,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - `render-plan` writes the PCCP document (FDA components, EU cross-reference, executable check map) and `card` maintains the model card.
 - Agent guard with thresholdout and exact modes, the peeking-agent scenario, and an agent loop example.
 - Read-only web dashboard (`medagentrx serve`, extra `[web]`) with strict security headers.
+- GitHub Action, GitLab CI/CD component, `medagentrx-validate` pre-commit hook and a hardened Dockerfile.
