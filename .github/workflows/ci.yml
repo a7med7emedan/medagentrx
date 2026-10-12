@@ -116,3 +116,28 @@ jobs:
       - run: uv sync --locked
       - name: Run the medagentrx-validate hook on the example plan
         run: uv run pre-commit try-repo . medagentrx-validate --files examples/sepsis-risk/change-plan.yaml
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image
+        run: docker build --tag medagentrx:ci .
+      - name: Run the demo read-only, without network or capabilities
+        run: >-
+          docker run --rm --read-only --tmpfs /tmp --network none
+          --cap-drop ALL --security-opt no-new-privileges medagentrx:ci
+      - name: Image size must stay under 300 MB compressed
+        run: |
+          size=$(docker save medagentrx:ci | gzip -c | wc -c)
+          echo "compressed size: $((size / 1000000)) MB"
+          test "$size" -lt 300000000
+      - name: Trivy, no HIGH or CRITICAL findings
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+          image --severity HIGH,CRITICAL --exit-code 1 --scanners vuln --no-progress medagentrx:ci
+      - name: Compose file is valid
+        run: docker compose config --quiet

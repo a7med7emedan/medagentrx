@@ -177,3 +177,23 @@ def test_dockerfile_rules() -> None:
     assert re.search(r"^USER 10001:10001$", text, re.M)
     assert 'ENTRYPOINT ["medagentrx"]' in text
     assert 'org.opencontainers.image.authors="Ahmed Hemedan"' in text
+
+
+def test_compose_file() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "compose.yaml").read_text(encoding="utf-8"))
+    services = compose["services"]
+    assert set(services) == {"demo", "dashboard"}
+    hardening = compose["x-hardening"]
+    assert hardening["read_only"] is True
+    assert hardening["cap_drop"] == ["ALL"]
+    assert "no-new-privileges:true" in hardening["security_opt"]
+    assert services["dashboard"]["ports"] == ["127.0.0.1:8765:8765"]
+    assert services["dashboard"]["volumes"][0].endswith(":/data:ro")
+    assert services["demo"]["network_mode"] == "none"
+
+
+def test_dockerfile_purges_unused_base_packages() -> None:
+    text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    for package in ("bash", "util-linux", "perl-base", "libsystemd0", "apt"):
+        assert f" {package} " in text
+    assert "--network" not in text
