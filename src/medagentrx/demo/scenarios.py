@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib import resources
@@ -55,12 +56,17 @@ class Step:
 
 @dataclass(frozen=True)
 class Scenario:
-    """A planted property and the outcome it must produce."""
+    """A planted property and the outcome it must produce.
+
+    Steps of a ``guard`` scenario are submitted by an agent through
+    ``medagentrx.guard.Guard`` instead of a formal check.
+    """
 
     name: str
     planted: str
     steps: tuple[Step, ...]
     build: Callable[[Cohort, Path], list[dict[str, Any]]]
+    guard: bool = False
 
 
 @dataclass
@@ -68,16 +74,18 @@ class StepResult:
     """What one step actually gave."""
 
     step: Step
-    evaluation: Evaluation
+    verdict: Verdict
+    failed: tuple[str, ...]
+    warnings: tuple[str, ...]
+    evaluation: Evaluation | None = None
 
     @property
     def ok(self) -> bool:
         """True when verdict, failed checks and warnings are exactly as expected."""
-        warnings = tuple(f.check_id for f in self.evaluation.findings if f.status.value == "warn")
         return (
-            self.evaluation.verdict is self.step.expected
-            and tuple(self.evaluation.failed_checks) == self.step.expected_failed
-            and warnings == self.step.expected_warnings
+            self.verdict is self.step.expected
+            and self.failed == self.step.expected_failed
+            and self.warnings == self.step.expected_warnings
         )
 
 
@@ -365,6 +373,37 @@ def build_underpowered(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     return [{"inputs": case, "now": START, "directory": root}]
 
 
+PEEKING_SUBMISSIONS = 25
+PEEKING_BUDGET = 20
+
+
+def _agent_plan(plan: dict[str, Any]) -> None:
+    plan["modifications"][0]["automatic"] = True
+
+
+def build_peeking_agent(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
+    """An agent loop submits 25 retrained candidates; the plan allows 20 looks.
+
+    Retraining M1 is marked automatic in this plan, so the agent may try it.
+    Each candidate is a slightly different, sound model.
+    """
+    prev = previous_logit(cohort)
+    steps = []
+    for k in range(1, PEEKING_SUBMISSIONS + 1):
+        directory = root / f"try-{k:02d}"
+        gain = 0.010 + 0.0005 * (k % 10)
+        case = _case(
+            cohort,
+            directory,
+            improved_logit(cohort, gain),
+            previous_logit=prev,
+            plan_edit=_agent_plan,
+            version=f"2.1.0-try{k}",
+        )
+        steps.append({"inputs": case, "now": START + dt.timedelta(hours=k), "directory": directory})
+    return steps
+
+
 ACCEPTED, FAILED, OUTSIDE = Verdict.ACCEPTED, Verdict.FAILED, Verdict.OUTSIDE_PLAN
 
 SCENARIOS: dict[str, Scenario] = {
@@ -428,6 +467,18 @@ SCENARIOS: dict[str, Scenario] = {
             (Step("2.1.0", ACCEPTED, (), ("PERF-006",)),),
             build_underpowered,
         ),
+        Scenario(
+            "peeking-agent",
+            "Agent loop submits 25 candidates on a budget of 20",
+            tuple(
+                Step(f"2.1.0-try{k}", ACCEPTED, ())
+                if k <= PEEKING_BUDGET
+                else Step(f"2.1.0-try{k}", OUTSIDE, ("DATA-004",))
+                for k in range(1, PEEKING_SUBMISSIONS + 1)
+            ),
+            build_peeking_agent,
+            guard=True,
+        ),
     )
 }
 
@@ -457,7 +508,10 @@ def run_scenario(
     cohort = cohort or make_cohort()
     ledger = root / "ledger.jsonl"
     result = ScenarioResult(scenario, root)
-    for step, built in zip(scenario.steps, scenario.build(cohort, root), strict=True):
+    built_steps = scenario.build(cohort, root)
+    if scenario.guard:
+        return _run_guarded(scenario, built_steps, ledger, result, n_replicates, seed)
+    for step, built in zip(scenario.steps, built_steps, strict=True):
         with exclusive(ledger):
             evaluation = evaluate(
                 **built["inputs"],
@@ -469,7 +523,62 @@ def run_scenario(
             entry = append(ledger, evaluation, already_locked=True)
         if on_step is not None:
             on_step(built["directory"], evaluation, entry)
-        result.steps.append(StepResult(step, evaluation))
+        warnings = tuple(f.check_id for f in evaluation.findings if f.status.value == "warn")
+        result.steps.append(
+            StepResult(
+                step, evaluation.verdict, tuple(evaluation.failed_checks), warnings, evaluation
+            )
+        )
+    return result
+
+
+def _run_guarded(
+    scenario: Scenario,
+    built_steps: list[dict[str, Any]],
+    ledger: Path,
+    result: ScenarioResult,
+    n_replicates: int,
+    seed: int,
+) -> ScenarioResult:
+    """Submit each step through the guard; read exact outcomes back from the ledger."""
+    from medagentrx.guard import Guard
+    from medagentrx.ledger import read_entries
+
+    first = built_steps[0]["inputs"]
+    guard = Guard(
+        first["plan"],
+        ledger,
+        "thresholdout",
+        previous=first["previous"],
+        anchor=first["anchor"],
+        seed=seed,
+        n_replicates=n_replicates,
+    )
+    answers = []
+    for built in built_steps:
+        inputs = built["inputs"]
+        decision = guard.submit(
+            inputs["candidate"], inputs["model_meta"], manifest=inputs["manifest"], now=built["now"]
+        )
+        answers.append(
+            {
+                "candidate": built["directory"].name,
+                "allowed": decision.allowed,
+                "reason": decision.reason,
+                "looks_used": decision.looks_used,
+                "looks_remaining": decision.looks_remaining,
+            }
+        )
+    (result.directory / "agent-answers.json").write_text(json.dumps(answers, indent=2) + "\n")
+    for step, entry in zip(scenario.steps, read_entries(ledger), strict=True):
+        result.steps.append(
+            StepResult(
+                step,
+                Verdict(entry["verdict"]),
+                tuple(entry["failed_checks"]),
+                tuple(entry["warnings"]),
+            )
+        )
     return result
 
 

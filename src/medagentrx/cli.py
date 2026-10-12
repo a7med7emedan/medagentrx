@@ -340,15 +340,23 @@ def demo(
 
     typer.echo("Synthetic data only. No real patient data is used.")
     results = run_all(out, names=scenario, n_replicates=replicates, on_step=write)
-    typer.echo(f"{'scenario':<20} {'expected':<14} {'got':<14} {'checks':<12} ok")
+    typer.echo(f"{'scenario':<20} {'steps':>5}  {'expected':<14} {'got':<14} {'checks':<12} ok")
     for result in results:
+        rows: list[list[Any]] = []
         for step in result.steps:
-            got = step.evaluation
-            expected = step.step.expected.value
-            checks = ",".join(got.failed_checks) or "-"
-            mark = "yes" if step.ok else "NO"
+            row = [
+                step.step.expected.value,
+                step.verdict.value,
+                ",".join(step.failed) or "-",
+                "yes" if step.ok else "NO",
+            ]
+            if rows and rows[-1][1:] == row:
+                rows[-1][0] += 1
+            else:
+                rows.append([1, *row])
+        for count, expected, got, checks, mark in rows:
             name = result.scenario.name
-            typer.echo(f"{name:<20} {expected:<14} {got.verdict.value:<14} {checks:<12} {mark}")
+            typer.echo(f"{name:<20} {count:>5}  {expected:<14} {got:<14} {checks:<12} {mark}")
     passed = sum(r.ok for r in results)
     typer.echo(f"{passed} of {len(results)} scenarios gave their expected verdict. Files: {out}")
     raise typer.Exit(0 if passed == len(results) else 1)

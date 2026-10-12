@@ -22,3 +22,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Synthetic sepsis demo cohort, nine planted scenarios with exact expected verdicts, the `demo` command, and example data in `examples/sepsis-risk`.
 - Reports: self-contained HTML with five inline SVG figures, JSON with a published schema, a Markdown summary for pull and merge requests, and JUnit XML.
 - `render-plan` writes the PCCP document (FDA components, EU cross-reference, executable check map) and `card` maintains the model card.
+- Agent guard with thresholdout and exact modes, the peeking-agent scenario, and an agent loop example.

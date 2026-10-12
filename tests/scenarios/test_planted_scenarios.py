@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Every planted scenario must give exactly its expected verdict and failing checks."""
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,7 @@ from medagentrx.demo import SCENARIOS, ScenarioResult, run_all
 from medagentrx.demo.cohort import make_cohort, sigma_for_auc
 from medagentrx.demo.plan import demo_plan
 from medagentrx.demo.scenarios import INTENDED_USE_SHA256, locked_fingerprint
+from medagentrx.engine import Evaluation
 from medagentrx.io.fingerprint import fingerprint_file
 from medagentrx.io.predictions import load_predictions
 from medagentrx.ledger import load_history, verify
@@ -28,6 +30,12 @@ def results(tmp_path_factory: pytest.TempPathFactory) -> dict[str, ScenarioResul
     return {r.scenario.name: r for r in run_all(out)}
 
 
+def _evaluation(result: ScenarioResult, index: int = 0) -> Evaluation:
+    evaluation = result.steps[index].evaluation
+    assert evaluation is not None
+    return evaluation
+
+
 def test_brief_scenarios_are_present() -> None:
     assert list(SCENARIOS) == [
         "good-update",
@@ -39,50 +47,64 @@ def test_brief_scenarios_are_present() -> None:
         "out-of-scope-data",
         "bio-creep",
         "underpowered",
+        "peeking-agent",
     ]
 
 
 @pytest.mark.parametrize("name", list(SCENARIOS))
 def test_scenario_gives_its_exact_verdict(results: dict[str, ScenarioResult], name: str) -> None:
     result = results[name]
+    assert len(result.steps) == len(result.scenario.steps)
     for step in result.steps:
-        evaluation = step.evaluation
-        warnings = [f.check_id for f in evaluation.findings if f.status.value == "warn"]
-        assert evaluation.verdict is step.step.expected, (name, evaluation.failed_checks)
-        assert tuple(evaluation.failed_checks) == step.step.expected_failed
-        assert tuple(warnings) == step.step.expected_warnings
+        assert step.verdict is step.step.expected, (name, step.failed)
+        assert step.failed == step.step.expected_failed
+        assert step.warnings == step.step.expected_warnings
     assert result.ok
     assert verify(result.directory / "ledger.jsonl").ok
 
 
+def test_peeking_agent_story(results: dict[str, ScenarioResult]) -> None:
+    result = results["peeking-agent"]
+    answers = json.loads((result.directory / "agent-answers.json").read_text(encoding="utf-8"))
+    assert [a["looks_used"] for a in answers] == [*range(1, 21), 20, 20, 20, 20, 20]
+    assert all(not a["allowed"] for a in answers[20:])
+    assert all("AUROC" not in a["reason"] and "0." not in a["reason"] for a in answers)
+    history = load_history(result.directory / "ledger.jsonl")
+    assert history.looks_used == 20
+    assert history.releases == ()
+    assert history.alpha is not None
+    assert history.alpha.spent == 0.0
+
+
 def test_bio_creep_story(results: dict[str, ScenarioResult]) -> None:
     steps = results["bio-creep"].steps
-    deltas = [s.evaluation.finding("LIFE-001").details["test"]["delta"] for s in steps]
+    evaluations = [_evaluation(results["bio-creep"], i) for i in range(len(steps))]
+    deltas = [e.finding("LIFE-001").details["test"]["delta"] for e in evaluations]
     assert deltas == pytest.approx([-0.008, -0.016, -0.024, -0.032, -0.040], abs=1e-4)
-    vs_previous = [s.evaluation.finding("PERF-001").details["tests"]["vs_previous"] for s in steps]
+    vs_previous = [e.finding("PERF-001").details["tests"]["vs_previous"] for e in evaluations]
     assert all(t["non_inferior"] for t in vs_previous)
-    assert steps[-1].evaluation.finding("LIFE-001").details["test"]["ci_lower"] < -0.04
+    assert evaluations[-1].finding("LIFE-001").details["test"]["ci_lower"] < -0.04
     history = load_history(results["bio-creep"].directory / "ledger.jsonl")
     assert history.looks_used == 5
     assert len(history.releases) == 4
 
 
 def test_planted_properties(results: dict[str, ScenarioResult]) -> None:
-    mis = results["miscalibrated"].steps[0].evaluation
+    mis = _evaluation(results["miscalibrated"])
     assert mis.finding("PERF-003").details["candidate"]["slope"] == pytest.approx(0.6, abs=0.01)
     assert mis.finding("PERF-001").details["tests"]["vs_previous"]["delta"] == pytest.approx(
         0, abs=1e-5
     )
-    harm = results["subgroup-harm"].steps[0].evaluation
+    harm = _evaluation(results["subgroup-harm"])
     groups = harm.finding("PERF-005").details["subgroups"]
     site_c = next(g for g in groups if g["column"] == "site" and g["level"] == "C")
     assert site_c["delta"] == pytest.approx(-0.06, abs=1e-3)
     assert harm.finding("PERF-001").details["tests"]["vs_previous"]["delta"] > 0
-    leak = results["leaky-training"].steps[0].evaluation
+    leak = _evaluation(results["leaky-training"])
     assert leak.finding("DATA-002").details["overlaps"]["patient_id"]["count"] == 300
-    scope = results["out-of-scope-data"].steps[0].evaluation
+    scope = _evaluation(results["out-of-scope-data"])
     assert scope.finding("DATA-003").details["failing"] == 150
-    power = results["underpowered"].steps[0].evaluation.finding("PERF-006").details["power"]
+    power = _evaluation(results["underpowered"]).finding("PERF-006").details["power"]
     assert power < 0.8
 
 

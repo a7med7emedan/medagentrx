@@ -37,6 +37,9 @@ from medagentrx.history import History, Release
 from medagentrx.stats.alpha import AlphaState
 
 LEDGER_FORMAT = 1
+ENTRY_KINDS = ("evaluation", "guard")
+"""``evaluation``: a formal check, which spends alpha and may release an update.
+``guard``: an agent's look through the guard, which spends a test-set look only."""
 GENESIS = "0" * 64
 DEFAULT_MAX_LEDGER_BYTES = 200_000_000
 LOCK_TIMEOUT_SECONDS = 10.0
@@ -251,7 +254,11 @@ def build_entry(
     """
     if evaluation.plan_id is None or evaluation.alpha_state is None:
         raise LedgerError("an evaluation with an invalid plan is not written to the ledger")
-    state_after = alpha_after(alpha_before or evaluation.alpha_state, evaluation)
+    if kind not in ENTRY_KINDS:
+        raise LedgerError(f"unknown ledger entry kind {kind!r}")
+    before = alpha_before or evaluation.alpha_state
+    guard = kind == "guard"
+    state_after = before if guard else alpha_after(before, evaluation)
     body: dict[str, Any] = {
         "format": LEDGER_FORMAT,
         "seq": seq,
@@ -271,8 +278,11 @@ def build_entry(
         "warnings": [f.check_id for f in evaluation.findings if f.status.value == "warn"],
         "touched_test_set": evaluation.touched_test_set,
         "test_fingerprint": evaluation.test_fingerprint,
-        "alpha": {"used": evaluation.alpha_used, "state_after": asdict(state_after)},
-        "metrics": json_safe(_metrics(evaluation)),
+        "alpha": {
+            "used": None if guard else evaluation.alpha_used,
+            "state_after": asdict(state_after),
+        },
+        "metrics": {} if guard else json_safe(_metrics(evaluation)),
         "inputs": dict(evaluation.inputs),
         "seed": evaluation.seed,
         "tool_version": evaluation.tool_version,
@@ -287,6 +297,7 @@ def append(
     *,
     head_path: Path | None = None,
     already_locked: bool = False,
+    kind: str = "evaluation",
 ) -> dict[str, Any]:
     """Verify the ledger, then append ``evaluation`` and update the head.
 
@@ -295,6 +306,7 @@ def append(
         evaluation: The evaluation to record.
         head_path: Head file. Defaults to ``head_path_for(path)``.
         already_locked: True when the caller holds ``exclusive(path)``.
+        kind: ``evaluation`` or ``guard``; see ``ENTRY_KINDS``.
 
     Raises:
         LedgerError: If the ledger fails verification, or changed after the
@@ -303,10 +315,12 @@ def append(
     path.parent.mkdir(parents=True, exist_ok=True)
     lock = contextlib.nullcontext() if already_locked else exclusive(path)
     with lock:
-        return _append_unlocked(path, evaluation, head_path or head_path_for(path))
+        return _append_unlocked(path, evaluation, head_path or head_path_for(path), kind)
 
 
-def _append_unlocked(path: Path, evaluation: Evaluation, head_file: Path) -> dict[str, Any]:
+def _append_unlocked(
+    path: Path, evaluation: Evaluation, head_file: Path, kind: str
+) -> dict[str, Any]:
     result = verify(path, head_path=head_file)
     if not result.ok:
         raise LedgerError(
@@ -319,7 +333,7 @@ def _append_unlocked(path: Path, evaluation: Evaluation, head_file: Path) -> dic
         )
     history = summarize(read_entries(path))
     entry = build_entry(
-        evaluation, seq=result.entries, prev_hash=result.head, alpha_before=history.alpha
+        evaluation, seq=result.entries, prev_hash=result.head, alpha_before=history.alpha, kind=kind
     )
     with path.open("a", encoding="utf-8") as handle:
         handle.write(canonical(entry) + "\n")

@@ -32,7 +32,7 @@ from medagentrx.io.fingerprint import test_set_fingerprint
 from medagentrx.io.hashing import sha256_file
 from medagentrx.io.limits import Limits
 from medagentrx.io.manifest import PATIENT_ID, load_manifest
-from medagentrx.io.metadata import load_model_meta
+from medagentrx.io.metadata import ModelMeta, load_model_meta
 from medagentrx.io.paths import resolve_input
 from medagentrx.io.predictions import (
     ROW_ID,
@@ -46,6 +46,7 @@ from medagentrx.io.predictions import (
 from medagentrx.io.tables import peek_columns, read_table
 from medagentrx.plan import load_plan, plan_fingerprint
 from medagentrx.plan.conditions import condition_fields
+from medagentrx.plan.models import ChangePlan
 from medagentrx.stats.alpha import AlphaState, initial_state, next_alpha, record
 from medagentrx.stats.bootstrap import DEFAULT_REPLICATES
 
@@ -218,6 +219,55 @@ def _invalid_plan(error: PlanError, now: dt.datetime, seed: int, n_replicates: i
         seed=seed,
         n_replicates=n_replicates,
         evaluated_at=now,
+    )
+
+
+def refused(
+    *,
+    plan: ChangePlan,
+    meta: ModelMeta,
+    check_id: str,
+    message: str,
+    history: History,
+    now: dt.datetime,
+) -> Evaluation:
+    """An OUTSIDE_PLAN evaluation decided before any data was read.
+
+    Used when an update can be refused from the plan and its metadata alone.
+    """
+    findings = [Finding(check_id, Status.FAIL, message)]
+    findings += [
+        Finding(
+            spec.check_id,
+            Status.SKIPPED,
+            f"Not assessed: refused before any data was read ({check_id})",
+        )
+        for spec in catalogue()
+        if spec.check_id != check_id
+    ]
+    findings.sort(key=lambda f: [s.check_id for s in catalogue()].index(f.check_id))
+    state = history.alpha or initial_state(
+        plan.performance.alpha_spending, plan.performance.alpha_total, plan.max_updates
+    )
+    return Evaluation(
+        verdict=decide(findings),
+        findings=tuple(findings),
+        plan_id=plan.plan.id,
+        plan_revision=plan.plan.revision,
+        plan_fingerprint=plan_fingerprint(plan),
+        candidate_version=meta.version,
+        previous_version=meta.previous_version,
+        modification_id=meta.modification_id,
+        test_fingerprint=None,
+        alpha_method=state.method,
+        alpha_used=None,
+        touched_test_set=False,
+        inputs={},
+        seed=0,
+        n_replicates=DEFAULT_REPLICATES,
+        evaluated_at=now,
+        alpha_state=state,
+        ledger_entries_before=history.entries,
     )
 
 
