@@ -1,0 +1,39 @@
+{# SPDX-FileCopyrightText: 2026 Ahmed Hemedan #}
+{# SPDX-License-Identifier: Apache-2.0 #}
+{% extends "base.html" %}
+{% block content %}
+<h1>{% if plan %}{{ plan.plan.device }}{% else %}Decision ledger{% endif %}</h1>
+{% if plan %}
+<dl>
+  <dt>Plan</dt><dd>{{ plan.plan.id }}, revision {{ plan.plan.revision }}, authorised {{ plan.plan.authorised }}</dd>
+  <dt>Anchor version</dt><dd>{{ plan.anchor_version }}</dd>
+  <dt>Agent may make</dt><dd>{% for m in plan.modifications if m.automatic %}{{ m.id }} {% else %}no modification without a person{% endfor %}</dd>
+</dl>
+{% endif %}
+{% if not verification.ok %}
+<p class="alert">The ledger fails verification. Budgets are not shown. {% for p in verification.problems %}{{ p }}. {% endfor %}</p>
+{% elif history %}
+<h2>Budgets</h2>
+<dl>
+  <dt>Looks at the locked test set</dt><dd>{{ history.looks_used }}{% if plan %} of {{ plan.data_management.locked_test_set.max_evaluations }}{% endif %}</dd>
+  <dt>Released updates</dt><dd>{{ history.releases|length }}{% if plan %} of {{ plan.max_updates }}{% endif %}</dd>
+  <dt>Alpha spent</dt><dd>{{ "%.5f"|format(history.alpha.spent if history.alpha else 0) }}{% if plan %} of {{ plan.performance.alpha_total }}{% endif %}</dd>
+</dl>
+{% endif %}
+<h2>Evaluations</h2>
+{% if entries %}
+<div class="scroll">
+<table>
+<thead><tr><th>Entry</th><th>Recorded</th><th>Kind</th><th>Version</th><th>Verdict</th><th>Failed checks</th></tr></thead>
+<tbody>
+{% for e in entries|reverse %}
+<tr><td><a href="/versions/{{ e.seq }}">{{ e.seq }}</a></td><td>{{ (e.recorded_at|string)[:19] }}</td><td>{{ e.kind }}</td><td>{{ e.candidate_version }}</td>
+<td class="verdict {{ e.verdict }}">{{ e.verdict.replace("_", " ") }}</td><td>{{ e.failed_checks|join(", ") or "none" }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p>The ledger is empty.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+/* SPDX-FileCopyrightText: 2026 Ahmed Hemedan */
+/* SPDX-License-Identifier: Apache-2.0 */
+:root { --teal: #0F766E; --slate: #1E293B; --amber: #F59E0B; --red: #B91C1C; --green: #15803D; --grey: #475569; --light: #F1F5F9; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, sans-serif; color: var(--slate); background: #fff; }
+header { background: var(--teal); color: #fff; padding: 12px 16px; }
+header a { color: #fff; margin-right: 16px; text-decoration: none; font-weight: 600; }
+header strong { margin-right: 24px; }
+main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.4rem; } h2 { font-size: 1.15rem; margin-top: 28px; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--light); vertical-align: top; }
+th { background: var(--light); }
+.verdict { font-weight: 700; }
+.ACCEPTED { color: var(--green); } .FAILED { color: var(--red); } .OUTSIDE_PLAN { color: #92400E; }
+.alert { border-left: 4px solid var(--red); background: #FEF2F2; padding: 8px 12px; }
+figure svg { display: block; max-width: 100%; height: auto; }
+figcaption { font-size: .85rem; color: var(--grey); }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+footer { margin-top: 40px; font-size: .85rem; color: var(--grey); }
+.scroll { overflow-x: auto; }
