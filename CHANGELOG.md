@@ -25,3 +25,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Agent guard with thresholdout and exact modes, the peeking-agent scenario, and an agent loop example.
 - Read-only web dashboard (`medagentrx serve`, extra `[web]`) with strict security headers.
 - GitHub Action, GitLab CI/CD component, `medagentrx-validate` pre-commit hook and a hardened Dockerfile.
+- Docker image of 119 MB compressed with no HIGH or CRITICAL Trivy findings, and `compose.yaml` with demo and dashboard services.

@@ -6,6 +6,7 @@ stages:
   - test
   - reference
   - integration
+  - docker
 
 include:
   - local: templates/medagentrx.yml
@@ -74,3 +75,21 @@ pre-commit-hook:
   script:
     - uv sync --locked
     - uv run pre-commit try-repo . medagentrx-validate --files examples/sepsis-risk/change-plan.yaml
+
+docker-image:
+  stage: docker
+  image: docker:28.1.1@sha256:eceba5b0fc2fcf83a74c298391c2ed9e1adbdaf04ee173611bd6282ec973e7ba
+  services:
+    - name: docker:28.1.1-dind@sha256:eceba5b0fc2fcf83a74c298391c2ed9e1adbdaf04ee173611bd6282ec973e7ba
+      alias: docker
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+  script:
+    - docker build --tag medagentrx:ci .
+    - docker run --rm --read-only --tmpfs /tmp --network none --cap-drop ALL --security-opt no-new-privileges medagentrx:ci
+    - test "$(docker save medagentrx:ci | gzip -c | wc -c)" -lt 300000000
+    - >-
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+      aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+      image --severity HIGH,CRITICAL --exit-code 1 --scanners vuln --no-progress medagentrx:ci

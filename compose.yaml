@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+#   docker compose run --rm demo
+#   MEDAGENTRX_DATA=./my-ledger-folder docker compose up dashboard
+# The dashboard is published on 127.0.0.1 only. It has no authentication.
+
+x-hardening: &hardening
+  image: medagentrx:local
+  build: .
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  demo:
+    <<: *hardening
+    network_mode: none
+    command: ["demo", "--out", "/tmp/medagentrx-demo"]
+
+  dashboard:
+    <<: *hardening
+    command:
+      - serve
+      - --ledger
+      - /data/ledger.jsonl
+      - --reports
+      - /data
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8765"
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ${MEDAGENTRX_DATA:-./medagentrx-data}:/data:ro
