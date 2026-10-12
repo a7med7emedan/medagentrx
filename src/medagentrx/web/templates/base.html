@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!-- SPDX-FileCopyrightText: 2026 Ahmed Hemedan -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>{% block title %}MedAgentRx dashboard{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <strong>MedAgentRx</strong>
+  <a href="/">Overview</a><a href="/timeline">Timeline</a><a href="/budgets">Budgets</a>
+</header>
+<main>
+{% block content %}{% endblock %}
+<footer>Read-only view of {{ ledger_path }}. MedAgentRx {{ version }}. MedAgentRx supports a quality management system. It is not legal or regulatory advice.</footer>
+</main>
+</body>
+</html>

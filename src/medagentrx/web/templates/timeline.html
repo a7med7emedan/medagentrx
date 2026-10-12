@@ -1,0 +1,12 @@
+{# SPDX-FileCopyrightText: 2026 Ahmed Hemedan #}
+{# SPDX-License-Identifier: Apache-2.0 #}
+{% extends "base.html" %}
+{% block title %}Timeline, MedAgentRx{% endblock %}
+{% block content %}
+<h1>Version timeline</h1>
+{% if figure %}
+<figure aria-label="{{ figure.alt }}">{{ figure.svg | safe }}<figcaption>{{ figure.alt }}</figcaption></figure>
+{% else %}
+<p>No formal evaluation has measured AUROC yet.</p>
+{% endif %}
+{% endblock %}

@@ -363,6 +363,39 @@ def demo(
 
 
 @app.command()
+def serve(
+    ledger: Annotated[Path, typer.Option("--ledger", help="Decision ledger to show.")],
+    reports: Annotated[
+        Path | None, typer.Option("--reports", help="Folder searched for report.json files.")
+    ] = None,
+    plan: Annotated[
+        Path | None, typer.Option("--plan", help="Change plan, for budget limits.")
+    ] = None,
+    host: Annotated[str, typer.Option("--host", help="Address to bind.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", min=1, max=65535, help="Port to bind.")] = 8765,
+) -> None:
+    """Serve a read-only dashboard of the ledger and reports (needs medagentrx[web])."""
+    try:
+        import uvicorn
+
+        from medagentrx.web.app import bind_warning, create_app
+    except ImportError:
+        typer.echo(
+            "error: the dashboard needs the web extra: pip install 'medagentrx[web]'", err=True
+        )
+        raise typer.Exit(ExitCode.USAGE_ERROR) from None
+    try:
+        application = create_app(ledger=ledger, reports=reports, plan=plan)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    warning = bind_warning(host)
+    if warning:
+        typer.echo(warning, err=True)
+    typer.echo(f"MedAgentRx dashboard on http://{host}:{port} (read-only, press Ctrl+C to stop)")
+    uvicorn.run(application, host=host, port=port, log_level="warning", server_header=False)
+
+
+@app.command()
 def init(
     out: Annotated[Path, typer.Option("--out", "-o", help="Where to write the plan.")] = Path(
         "change-plan.yaml"

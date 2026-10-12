@@ -1,0 +1,17 @@
+{# SPDX-FileCopyrightText: 2026 Ahmed Hemedan #}
+{# SPDX-License-Identifier: Apache-2.0 #}
+{% extends "base.html" %}
+{% block title %}Entry {{ entry.seq }}, MedAgentRx{% endblock %}
+{% block content %}
+<h1>Ledger entry {{ entry.seq }}</h1>
+<p>No report for this entry was found. Start the dashboard with <code>--reports</code> pointing at the report folders.</p>
+<dl>
+  <dt>Kind</dt><dd>{{ entry.kind }}</dd>
+  <dt>Recorded</dt><dd>{{ entry.recorded_at }}</dd>
+  <dt>Version</dt><dd>{{ entry.candidate_version }} replacing {{ entry.previous_version }} ({{ entry.modification_id }})</dd>
+  <dt>Verdict</dt><dd class="verdict {{ entry.verdict }}">{{ entry.verdict }}</dd>
+  <dt>Failed checks</dt><dd>{{ entry.failed_checks|join(", ") or "none" }}</dd>
+  <dt>Warnings</dt><dd>{{ entry.warnings|join(", ") or "none" }}</dd>
+  <dt>Hash</dt><dd><code>{{ entry.hash }}</code></dd>
+</dl>
+{% endblock %}

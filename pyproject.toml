@@ -66,7 +66,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-web = []
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+]
 
 [project.scripts]
 medagentrx = "medagentrx.cli:run"
@@ -78,6 +81,7 @@ Issues = "https://github.com/a7med7emedan/medagentrx/issues"
 
 [dependency-groups]
 dev = [
+    "medagentrx[web]",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "hypothesis>=6.120",
@@ -85,6 +89,7 @@ dev = [
     "mypy>=1.14",
     "reuse[charset-normalizer]>=6.0",
     "pre-commit>=4.0",
+    "httpx>=0.28",
 ]
 
 [tool.uv]
@@ -123,7 +128,11 @@ minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config", "--cov", "--cov-report=term-missing"]
 markers = ["slow: long statistical validation runs, nightly and before release"]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Starlette's TestClient prefers httpx2; the brief names httpx for the smoke tests.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
+]
 
 [tool.coverage.run]
 source = ["medagentrx"]

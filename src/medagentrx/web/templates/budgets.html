@@ -1,0 +1,13 @@
+{# SPDX-FileCopyrightText: 2026 Ahmed Hemedan #}
+{# SPDX-License-Identifier: Apache-2.0 #}
+{% extends "base.html" %}
+{% block title %}Budgets, MedAgentRx{% endblock %}
+{% block content %}
+<h1>Plan budgets</h1>
+{% if figure %}
+<figure aria-label="{{ figure.alt }}">{{ figure.svg | safe }}<figcaption>{{ figure.alt }}</figcaption></figure>
+{% else %}
+<p>Start the dashboard with <code>--plan</code> to compare use with the plan's limits.</p>
+<dl><dt>Looks used</dt><dd>{{ history.looks_used }}</dd><dt>Released updates</dt><dd>{{ history.releases|length }}</dd></dl>
+{% endif %}
+{% endblock %}
