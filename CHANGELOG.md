@@ -16,6 +16,7 @@ First release candidate.
 - DATA-006 binds each prediction file to its model: the candidate to `predictions_sha256` in its metadata, the previous version to its recorded release, and optionally the anchor to `anchor_predictions_sha256` in the plan.
 - Ed25519 signatures on the ledger head. `ledger keygen` makes a key pair, the plan can pin the key with `ledger_signing_key_sha256`, `check --signing-key` and the guard sign each head, and `ledger verify --public-key` checks the signature.
 - Subgroups are tested as an intersection-union test (`multiplicity: none`), since the update passes only if every subgroup is non-inferior. Holm and Bonferroni remain as stricter options.
+- The guard answers one noisy bit for all statistical criteria together, instead of adding noise to the AUROC test alone and answering the rest exactly. With the agent's own validation predictions it runs Thresholdout. Guard ledger entries record what the agent was told.
 
 ### Added
 
