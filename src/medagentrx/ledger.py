@@ -177,6 +177,13 @@ def summarize(entries: list[dict[str, Any]]) -> History:
         if state:
             alpha = AlphaState(**state)
             break
+    released_predictions = {
+        e["candidate_version"]: e["inputs"]["candidate"]
+        for e in entries
+        if e.get("kind") == "evaluation"
+        and e.get("verdict") == "ACCEPTED"
+        and e.get("inputs", {}).get("candidate")
+    }
     return History(
         plan_id=first["id"],
         plan_revision=first["revision"],
@@ -185,6 +192,7 @@ def summarize(entries: list[dict[str, Any]]) -> History:
         releases=releases,
         alpha=alpha,
         entries=len(entries),
+        released_predictions=released_predictions,
     )
 
 

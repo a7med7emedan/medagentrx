@@ -18,6 +18,7 @@ An approved change plan (FDA PCCP, EU AI Act Art. 43(4)). Every model update is 
 | `pccp_version` | `1.0` | yes | Version of this file format. |
 | `plan` | PlanHeader | yes | Identity, revision and authorisation of the plan. |
 | `anchor_version` | string | yes | The originally authorised model version. It never changes. |
+| `anchor_predictions_sha256` | string (pattern `^[0-9a-f]{64}$`) or null | no | SHA-256 of the anchor's prediction file on the locked test set, recorded at authorisation. When given, the anchor file of every check must match it. |
 | `max_updates` | integer (>= 1) | yes | Updates allowed under this plan. |
 | `update_frequency` | UpdateFrequency | yes | Release frequency limit. |
 | `modifications` | list of Modification | yes | FDA Description of Modifications. |

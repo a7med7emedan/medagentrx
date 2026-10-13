@@ -34,7 +34,7 @@ Reports for every step are written under `medagentrx-demo/`. Open any `report.ht
 2. **Check it.** `medagentrx validate change-plan.yaml`.
 3. **Fingerprint the locked test set.** `medagentrx fingerprint test-predictions.parquet`, and paste the result into `locked_test_set.sha256`.
 4. **Export predictions.** For each model version, write a Parquet or CSV file with `row_id`, `y_true`, `y_score` and the subgroup columns the plan names. The candidate file also carries the keys in `forbid_overlap_on`, such as `patient_id`. Model binaries are never loaded.
-5. **Describe the candidate** in `model.yaml`: version, previous version, modification id, and the SHA-256 of its architecture, intended-use statement and training manifest.
+5. **Describe the candidate** in `model.yaml`: version, previous version, modification id, and the SHA-256 of its architecture, intended-use statement, training manifest and prediction file. The prediction hash binds the file being checked to the model that produced it (DATA-006).
 6. **Check the update.**
 
 ```bash

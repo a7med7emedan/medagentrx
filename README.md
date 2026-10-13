@@ -31,12 +31,12 @@ AI agents and automated pipelines now retrain clinical models on their own. MedA
 | Family | Checks | A failure means |
 |---|---|---|
 | PLAN | The plan is unchanged, the modification is listed, the intended use is the same, the update fits the plan's count and frequency | OUTSIDE_PLAN |
-| DATA | Locked test set unchanged, no training and test overlap, training data in scope, test-set looks left, population shift | OUTSIDE_PLAN, FAILED or a warning |
+| DATA | Locked test set unchanged, no training and test overlap, training data in scope, test-set looks left, population shift, prediction files bound to their models | OUTSIDE_PLAN, FAILED or a warning |
 | PERF | AUROC, sensitivity and specificity, calibration, net benefit and every subgroup meet the plan; power for the margin | FAILED or a warning |
 | LIFE | No bio-creep against the authorised version; alpha left | FAILED or OUTSIDE_PLAN |
 | DOC | The model card can be updated | FAILED |
 
-The [checks catalogue](docs/checks.md) lists all 18 checks with their regulatory cross-references.
+The [checks catalogue](docs/checks.md) lists all 19 checks with their regulatory cross-references.
 
 ## Sixty-second quickstart
 

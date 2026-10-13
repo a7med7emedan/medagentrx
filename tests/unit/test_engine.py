@@ -66,6 +66,7 @@ def test_catalogue_matches_the_brief() -> None:
         "DATA-003",
         "DATA-004",
         "DATA-005",
+        "DATA-006",
         "PERF-001",
         "PERF-002",
         "PERF-003",
@@ -85,6 +86,7 @@ def test_catalogue_matches_the_brief() -> None:
         "DATA-001",
         "DATA-003",
         "DATA-004",
+        "DATA-006",
         "LIFE-002",
     }
     assert {k for k, v in breaks.items() if v is Breaks.WARNING} == {"DATA-005", "PERF-006"}
@@ -261,7 +263,7 @@ def test_tampered_labels_are_outside_plan(tmp_path: Path, good: Case) -> None:
     tampered.write_text("\n".join([header, ",".join(first), *text[2:]]) + "\n", encoding="utf-8")
     result = run(dataclasses.replace(good, candidate=tampered))
     assert result.verdict is Verdict.OUTSIDE_PLAN
-    assert result.failed_checks == ["DATA-001"]
+    assert result.failed_checks == ["DATA-001", "DATA-006"]
     assert statuses(result)["PERF-001"] == "skipped"
     assert not result.touched_test_set
     assert result.alpha_used is None
@@ -499,7 +501,7 @@ def test_missing_key_column_is_an_input_error(tmp_path: Path) -> None:
 
 
 def test_registry_has_every_check() -> None:
-    assert len(REGISTRY) == 18
+    assert len(REGISTRY) == 19
 
 
 def test_other_overlap_key_and_blank_feature(tmp_path: Path) -> None:
@@ -581,3 +583,44 @@ def test_paired_test_from_checks_margin() -> None:
     result = delong(np.array([0, 0, 1, 1]), np.array([0.1, 0.4, 0.35, 0.8]))
     with pytest.raises(StatsError, match="margin"):
         paired_test_from(result, 0, 0, margin=-0.1, alpha=0.025)
+
+
+def test_candidate_predictions_must_match_metadata(tmp_path: Path) -> None:
+    case = make_case(tmp_path, meta_edit=lambda m: m.update(predictions_sha256="e" * 64))
+    result = run(case)
+    assert result.verdict is Verdict.OUTSIDE_PLAN
+    assert result.failed_checks == ["DATA-006"]
+    assert "candidate" in result.finding("DATA-006").message
+    assert not result.touched_test_set
+
+
+def test_anchor_predictions_bound_by_the_plan(tmp_path: Path) -> None:
+    import hashlib
+
+    case = make_case(tmp_path / "a")
+    anchor_sha = hashlib.sha256(case.anchor.read_bytes()).hexdigest()
+
+    def bind(plan: dict[str, Any], value: str) -> None:
+        plan["anchor_predictions_sha256"] = value
+
+    good = make_case(tmp_path / "b", plan_edit=lambda p: bind(p, anchor_sha))
+    finding = run(good).finding("DATA-006")
+    assert finding.status is Status.PASS
+    assert finding.details["not_bound"] == ["previous"]
+    bad = make_case(tmp_path / "c", plan_edit=lambda p: bind(p, "f" * 64))
+    result = run(bad)
+    assert result.failed_checks == ["DATA-006"]
+    assert "anchor" in result.finding("DATA-006").message
+
+
+def test_previous_predictions_bound_by_the_ledger(good: Case) -> None:
+    released = {"2.0.0": "a" * 64}
+    result = run(good, _history_for(good, released_predictions=released))
+    assert result.failed_checks == ["DATA-006"]
+    assert "previous" in result.finding("DATA-006").message
+    import hashlib
+
+    released = {"2.0.0": hashlib.sha256(good.previous.read_bytes()).hexdigest()}
+    assert (
+        statuses(run(good, _history_for(good, released_predictions=released)))["DATA-006"] == "pass"
+    )

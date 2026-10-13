@@ -148,6 +148,7 @@ def make_case(
         "intended_use_sha256": INTENDED_USE,
         "trained_at": "2026-04-01T10:00:00+00:00",
         "training_manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "predictions_sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
     }
     if meta_edit:
         meta_edit(meta_data)

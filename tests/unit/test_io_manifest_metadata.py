@@ -117,6 +117,7 @@ architecture_sha256: "{h}"
 intended_use_sha256: "{h}"
 trained_at: 2026-04-01T10:00:00Z
 training_manifest_sha256: "{h}"
+predictions_sha256: "{h}"
 """.format(h="a" * 64)
 
 

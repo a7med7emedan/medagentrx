@@ -364,6 +364,10 @@ def evaluate(
         mismatches=mismatches,
         manifest=train,
         manifest_sha256=sha256_file(resolve_input(manifest, base=base)),
+        prediction_sha256={
+            role: sha256_file(resolve_input(path, base=base))
+            for role, path in (("candidate", candidate), ("previous", previous), ("anchor", anchor))
+        },
         test_features=test_features,
         history=history,
         alpha_state=state,

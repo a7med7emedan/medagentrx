@@ -49,6 +49,11 @@ def report(evaluation: Evaluation) -> dict[str, Any]:
     return report_dict(evaluation, ledger={"seq": 0, "hash": "a" * 64})
 
 
+def _by_id(report: dict[str, Any], check_id: str) -> dict[str, Any]:
+    found: dict[str, Any] = next(c for c in report["checks"] if c["id"] == check_id)
+    return found
+
+
 def test_report_json_matches_published_schema(report: dict[str, Any]) -> None:
     jsonschema.Draft202012Validator.check_schema(SCHEMA)
     jsonschema.validate(report, SCHEMA)
@@ -172,7 +177,7 @@ def test_timeline_marks_versions_without_auroc(report: dict[str, Any]) -> None:
         },
     ]
     no_anchor = json.loads(json.dumps(report))
-    no_anchor["checks"][9]["details"]["auc"].pop("anchor")
+    _by_id(no_anchor, "PERF-001")["details"]["auc"].pop("anchor")
     timeline = figures(no_anchor, entries)[0]
     assert "9.9" not in timeline.alt
     assert "2.0.9 OUTSIDE_PLAN" in timeline.alt
@@ -199,8 +204,8 @@ def test_markdown_summary(report: dict[str, Any]) -> None:
     assert "**Key numbers**" in text
     failing = json.loads(json.dumps(report))
     failing["verdict"] = "FAILED"
-    failing["checks"][9]["status"] = "fail"
-    failing["checks"][9]["message"] = "a | b"
+    _by_id(failing, "PERF-001")["status"] = "fail"
+    _by_id(failing, "PERF-001")["message"] = "a | b"
     assert "| PERF-001 | fail | a \\| b |" in render_markdown(failing)
     passing = json.loads(json.dumps(report))
     for c in passing["checks"]:
@@ -210,18 +215,20 @@ def test_markdown_summary(report: dict[str, Any]) -> None:
 
 def test_junit_xml(report: dict[str, Any]) -> None:
     data = json.loads(json.dumps(report))
-    data["checks"][9]["status"] = "fail"
-    data["checks"][10]["status"] = "skipped"
+    _by_id(data, "PERF-001")["status"] = "fail"
+    _by_id(data, "PERF-002")["status"] = "skipped"
     root = ET.fromstring(render_junit(data))  # noqa: S314  # our own output
     suite = root.find("testsuite")
     assert suite is not None
-    assert suite.get("tests") == "18"
+    assert suite.get("tests") == "19"
     assert suite.get("failures") == "1"
     cases = suite.findall("testcase")
-    assert len(cases) == 18
-    assert cases[9].find("failure") is not None
-    assert cases[9].find("failure").get("type") == "FAILED"  # type: ignore[union-attr]
-    assert cases[10].find("skipped") is not None
+    assert len(cases) == 19
+    by_name = {c.get("name", "").split()[0]: c for c in cases}
+    failure = by_name["PERF-001"].find("failure")
+    assert failure is not None
+    assert failure.get("type") == "FAILED"
+    assert by_name["PERF-002"].find("skipped") is not None
     warn = [c for c in cases if c.find("system-out") is not None]
     assert [c.get("name", "").split()[0] for c in warn] == ["PERF-006"]
 

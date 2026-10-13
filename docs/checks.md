@@ -20,6 +20,7 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 | DATA-003 | DATA | Every training row meets the inclusion criteria | OUTSIDE PLAN | Data management; AI Act Art. 10 |
 | DATA-004 | DATA | Test-set evaluation budget is not exceeded | OUTSIDE PLAN | Test data sequestration; adaptive overfitting (Dwork et al. 2015) |
 | DATA-005 | DATA | Population shift between training and test data | WARNING | Evidence-based principle |
+| DATA-006 | DATA | Prediction files are the ones the models produced | OUTSIDE PLAN | Traceability; Modification Protocol, update procedures |
 | PERF-001 | PERF | AUROC is non-inferior (paired DeLong) | FAILED | Performance evaluation protocol |
 | PERF-002 | PERF | Sensitivity and specificity at the operating threshold are non-inferior | FAILED | Performance evaluation protocol |
 | PERF-003 | PERF | Calibration slope and intercept are within bounds | FAILED | AI Act Art. 15 accuracy |
@@ -49,6 +50,8 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 **DATA-004: Test-set evaluation budget is not exceeded.** This look must fit inside ``max_evaluations``.
 
 **DATA-005: Population shift between training and test data.** Warn when a shared feature has |SMD| above 0.1 between training and test data.
+
+**DATA-006: Prediction files are the ones the models produced.** Bind each prediction file to its model.
 
 **PERF-001: AUROC is non-inferior (paired DeLong).** Paired DeLong non-inferiority against each comparator in the plan.
 
