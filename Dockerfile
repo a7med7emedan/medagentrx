@@ -6,7 +6,7 @@
 #   docker build -t medagentrx .
 #   docker run --rm --read-only --tmpfs /tmp medagentrx
 
-FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS build
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS build
 COPY --from=ghcr.io/astral-sh/uv:0.12.15@sha256:62f8c047d0a0e9ece6b53fc63df902585a67a47a7f318ddec4a37db586edc8e3 /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
@@ -27,7 +27,7 @@ RUN find . -depth -type d \( -name tests -o -name __pycache__ \) -exec rm -rf {}
           pyarrow/libarrow_s3.so* pyarrow/_s3fs.*.so \
           pyarrow/_gcsfs.*.so pyarrow/_azurefs.*.so pyarrow/_hdfs.*.so
 
-FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 ARG VERSION=0.1.0rc1
 LABEL org.opencontainers.image.title="MedAgentRx" \
       org.opencontainers.image.description="Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4))." \
