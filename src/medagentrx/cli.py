@@ -323,21 +323,36 @@ def ledger_verify(
         Path | None,
         typer.Option("--public-key", help="Require a valid head signature by this public key."),
     ] = None,
+    plan: Annotated[
+        Path | None,
+        typer.Option("--plan", help="Change plan whose pinned signing key the head must match."),
+    ] = None,
 ) -> None:
     """Recompute the hash chain and compare it with the recorded head.
 
     Exit codes: 0 intact, 1 fails verification, 3 input or usage error.
     """
     from medagentrx.ledger import verify
-    from medagentrx.signing import load_public_key
+    from medagentrx.plan import load_plan
+    from medagentrx.signing import key_fingerprint, load_public_key
 
     try:
         key = load_public_key(public_key) if public_key is not None else None
+        pinned = load_plan(plan).ledger_signing_key_sha256 if plan is not None else None
         result = verify(ledger, head_path=head, public_key=key)
     except MedAgentRxError as exc:
         raise _fail(exc) from None
+    fingerprint = key_fingerprint(key) if key is not None else None
+    if pinned is not None and fingerprint != pinned:
+        typer.echo(
+            "ledger fails verification: the plan pins signing key "
+            f"{pinned[:16]}, but {'no key' if key is None else 'key ' + str(fingerprint)[:16]} "
+            "was given",
+            err=True,
+        )
+        raise typer.Exit(1)
     if result.ok:
-        signed = ", signature valid" if public_key is not None else ""
+        signed = f", signature valid (key {str(fingerprint)[:16]})" if key is not None else ""
         typer.echo(f"ok: {result.entries} entries, head {result.head}{signed}")
         return
     typer.echo(f"ledger fails verification: {ledger}", err=True)
@@ -464,13 +479,20 @@ def card(
     """Add or replace this version's performance section in the model card."""
     from medagentrx.card import load_report, update_card
     from medagentrx.io.hashing import sha256_file
-    from medagentrx.ledger import record, signing_policy
+    from medagentrx.ledger import check_record, record, signing_policy
     from medagentrx.plan import load_plan
 
     try:
         change_plan = load_plan(plan)
         loaded = load_report(report)
         key = signing_policy(change_plan, signing_key) if ledger is not None else None
+        if ledger is not None:
+            check_record(
+                ledger,
+                "card",
+                loaded["candidate_version"],
+                candidate_sha256=loaded["inputs"].get("candidate"),
+            )
         written = update_card(out, change_plan, loaded)
         if ledger is not None:
             record(

@@ -25,7 +25,7 @@ MedAgentRx reads files that people and agents control, and its verdict can relea
 | Symlink in a checkout points at secrets outside it | Information disclosure | Inside the working directory, symlinks are followed only when they stay inside it | `io/paths.py` |
 | Output written outside the output folder | Tampering | Output names checked; absolute paths, `..` and symlinked targets refused | `io/paths.py` |
 | Script injection through plan text, labels or data into reports | Tampering, information disclosure | Jinja2 autoescaping; no script in reports; figures drawn as paths with no external reference; CSP that forbids loading anything | `report/` |
-| Edited, reordered or removed ledger entries hide failed attempts | Tampering, repudiation | Hash chain over every entry, a head file and an optional Ed25519 signature on the head, pinned by the plan; `check` refuses a ledger that fails verification | `ledger.py`, `signing.py` |
+| Edited, reordered or removed ledger entries hide failed attempts | Tampering, repudiation | Hash chain over every entry, a head file and an optional Ed25519 signature on the head, pinned by the plan; `check` refuses a ledger that fails verification. A trusted copy of the latest head detects rollback | `ledger.py`, `signing.py` |
 | Two evaluations race for the last test-set look | Tampering | A lock spans reading budgets to appending; stale evaluations refused | `ledger.py` |
 | Clock set back to slip past the frequency limit | Tampering | Entries must not run backwards in time; `check` refuses an earlier time and `verify` reports one | `ledger.py` |
 | An agent fits the locked test set by trying many candidates | Information disclosure | Look budget counts every try; thresholdout mode returns one noisy bit; only automatic modifications allowed | `guard.py` |
@@ -38,6 +38,7 @@ MedAgentRx reads files that people and agents control, and its verdict can relea
 
 - Without a signing key, whoever controls both the ledger and its head file can rewrite history. Pin a signing key in the plan, or keep a copy of the head where the ledger's writers cannot change it.
 - A clock set forward is not detected when it happens. Later entries made with the correct time are then refused, which shows the problem, but the frequency limit was already measured from the wrong time. Run checks on a host with a trusted, synchronised clock.
+- A signed head does not prevent rollback. Truncating the ledger and restoring an older signed head passes verification unless the verifier holds a newer head. Keep the latest head outside the writers' reach, or anchor it in a transparency log (see the roadmap).
 - Whoever holds the signing key can sign a rewritten head. Keep the key with a party that does not train or submit models, such as a protected CI secret.
 - The tool trusts that prediction files come from the models they claim to. Model provenance is the quality system's job.
 - In thresholdout mode each look still leaks a little information. The look budget bounds the total.

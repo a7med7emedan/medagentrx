@@ -122,11 +122,12 @@ def verify_head(head: dict[str, Any], key: Ed25519PublicKey) -> str | None:
         return f"unknown signature algorithm {block.get('algorithm')!r}"
     if block.get("key") != key_fingerprint(key):
         return "the head was signed with a different key"
+    entries, last = head.get("entries"), head.get("head")
+    if not isinstance(entries, int) or isinstance(entries, bool) or not isinstance(last, str):
+        return "the head is malformed"
     try:
         signature = base64.b64decode(str(block.get("value", "")), validate=True)
-        key.verify(
-            signature, _message(int(head.get("entries", -1)), str(head.get("head")), block["key"])
-        )
+        key.verify(signature, _message(entries, last, str(block["key"])))
     except (InvalidSignature, ValueError):
         return "the head signature is not valid"
     return None
