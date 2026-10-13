@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +49,8 @@ def _run(case: Case, ledger: Path, out: Path, key: Path | None) -> Any:
 
 def test_key_pair(keys: tuple[Path, Path, str]) -> None:
     private, public, fingerprint = keys
-    assert private.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":  # Windows has no POSIX permission bits; protect the key with ACLs
+        assert private.stat().st_mode & 0o777 == 0o600
     assert key_fingerprint(load_public_key(public)) == fingerprint
     assert key_fingerprint(load_private_key(private).public_key()) == fingerprint
     with pytest.raises(InputError, match="refusing to overwrite"):

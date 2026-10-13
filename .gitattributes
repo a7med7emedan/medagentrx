@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# Files whose exact bytes are hashed must never have their line endings
+# converted, or a Windows checkout would no longer match the plan.
+intended-use.txt -text
+*.parquet binary

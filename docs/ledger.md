@@ -50,7 +50,7 @@ A hash chain shows that entries were edited. It cannot stop someone who can writ
 medagentrx ledger keygen --out keys/
 ```
 
-This writes `ledger-signing.key` with owner-only permissions and `ledger-signing.pub`, and prints the key fingerprint. Set `MEDAGENTRX_SIGNING_KEY_PASSPHRASE` before running it to encrypt the private key. Pin the key in the plan:
+This writes `ledger-signing.key` with owner-only permissions and `ledger-signing.pub`, and prints the key fingerprint. Windows has no POSIX permissions, so restrict the key file there with the folder's access control list. Set `MEDAGENTRX_SIGNING_KEY_PASSPHRASE` before running it to encrypt the private key. Pin the key in the plan:
 
 ```yaml
 ledger_signing_key_sha256: "<fingerprint printed by keygen>"
