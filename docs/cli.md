@@ -16,7 +16,7 @@ SPDX-License-Identifier: Apache-2.0
 | `medagentrx render-plan PLAN --out DIR` | Write the PCCP document in Markdown and HTML. |
 | `medagentrx card PLAN --report DIR/report.json --out MODEL_CARD.md [--ledger LEDGER]` | Add an accepted version's performance to the model card, and record the update in the ledger. |
 | `medagentrx ledger release LEDGER --version V` | Record that an accepted version was put into service. |
-| `medagentrx ledger verify LEDGER` | Recompute the hash chain and compare it with the head. |
+| `medagentrx ledger verify LEDGER [--public-key KEY] [--plan PLAN]` | Recompute the hash chain, compare it with the head, and check the head signature against the plan's key. |
 | `medagentrx ledger show LEDGER` | List every evaluation and the budgets used. |
 | `medagentrx ledger keygen --out DIR` | Write an Ed25519 key pair for signing ledger heads and print its fingerprint. |
 | `medagentrx demo [--out DIR]` | Run the planted scenarios on synthetic data. |

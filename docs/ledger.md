@@ -44,7 +44,7 @@ Each version takes at most one record of each kind, and only after an ACCEPTED e
 
 ## Signed heads
 
-A hash chain shows that entries were edited. It cannot stop someone who can write both the ledger and its head from rewriting the whole chain. Signing the head closes that gap. The signing key stays with a trusted party, such as a CI secret, and anyone can verify with the public key.
+A hash chain shows that entries were edited. It cannot stop someone who can write both the ledger and its head from rewriting the whole chain. A signed head stops that: without the key, nobody can produce a valid head for altered history. The signing key stays with a trusted party, such as a CI secret, and anyone can verify with the public key.
 
 ```bash
 medagentrx ledger keygen --out keys/
@@ -58,16 +58,20 @@ ledger_signing_key_sha256: "<fingerprint printed by keygen>"
 
 With the key pinned, `check` and the guard refuse to run without the matching key, given by `--signing-key` or `MEDAGENTRX_SIGNING_KEY`. Each head then carries an Ed25519 signature over the entry count, the last hash and the key fingerprint. Because the fingerprint is part of the plan, changing the key changes the plan, and PLAN-001 reports it.
 
+Start signing with a new ledger. A ledger that began unsigned stays unsigned, because a signature would vouch for history nobody signed. A signed ledger refuses unsigned appends.
+
+A signature cannot stop a rollback. Every head the key ever signed stays valid for its prefix of the ledger, so someone who can write the files could truncate the ledger and restore an older signed head, removing later failures. Keep the latest head where the ledger's writers cannot change it, for example as a CI artifact, and verify against it with `--head`.
+
 ## Verifying
 
 ```bash
 medagentrx ledger verify ledger.jsonl
 medagentrx ledger verify ledger.jsonl --head /trusted/copy/ledger.jsonl.head
-medagentrx ledger verify ledger.jsonl --public-key keys/ledger-signing.pub
+medagentrx ledger verify ledger.jsonl --public-key keys/ledger-signing.pub --plan change-plan.yaml
 medagentrx ledger show ledger.jsonl
 ```
 
-`verify` exits with 0 when the chain and head agree, 1 when they do not, and 3 for an input or usage error. With `--public-key`, the head must also carry a valid signature from that key. `check` refuses to use, or append to, a ledger that fails verification.
+`verify` exits with 0 when the chain and head agree, 1 when they do not, and 3 for an input or usage error. With `--public-key`, the head must also carry a valid signature from that key. With `--plan`, the key must be the one the plan pins. `check` refuses to use, or append to, a ledger that fails verification.
 
 ## Concurrency
 

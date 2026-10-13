@@ -165,3 +165,77 @@ def test_cli_records(case: Case, accepted: Evaluation, tmp_path: Path) -> None:
     assert "release of the accepted entry 0" in shown.output
     assert "accepted: 1; in service: 1" in shown.output
     assert verify(ledger).ok
+
+
+def test_append_refuses_record_kinds(accepted: Evaluation, tmp_path: Path) -> None:
+    for kind in ("card", "release"):
+        with pytest.raises(LedgerError, match="use record"):
+            append(tmp_path / f"{kind}.jsonl", accepted, kind=kind)
+
+
+def test_an_unsigned_ledger_cannot_start_signing(accepted: Evaluation, tmp_path: Path) -> None:
+    ledger = _ledger(tmp_path, accepted)
+    generate_key_pair(tmp_path / "k.key", tmp_path / "k.pub")
+    with pytest.raises(LedgerError, match="started without signatures"):
+        record(
+            ledger, "release", "2.1.0", now=NOW, signing_key=load_private_key(tmp_path / "k.key")
+        )
+
+
+def test_card_is_untouched_when_the_record_is_refused(
+    case: Case, accepted: Evaluation, tmp_path: Path
+) -> None:
+    ledger = _ledger(tmp_path, accepted)
+    record(ledger, "card", "2.1.0", now=NOW)
+    entry = read_entries(ledger)[0]
+    report = tmp_path / "report.json"
+    report.write_text(json.dumps(report_dict(accepted, ledger={"seq": 0, "hash": entry["hash"]})))
+    card = tmp_path / "CARD.md"
+    card.write_text("# Card\n", encoding="utf-8")
+    args = ["card", str(case.plan), "--report", str(report), "--out", str(card)]
+    result = runner.invoke(app, [*args, "--ledger", str(ledger)])
+    assert result.exit_code == 3
+    assert "already has a card record" in result.output
+    assert card.read_text(encoding="utf-8") == "# Card\n"
+
+
+def test_malformed_heads_fail_verification(accepted: Evaluation, tmp_path: Path) -> None:
+    generate_key_pair(tmp_path / "k.key", tmp_path / "k.pub")
+    ledger = tmp_path / "ledger.jsonl"
+    append(ledger, accepted, signing_key=load_private_key(tmp_path / "k.key"))
+    head = head_path_for(ledger)
+    good = json.loads(head.read_text())
+    public = runner.invoke(
+        app, ["ledger", "verify", str(ledger), "--public-key", str(tmp_path / "k.pub")]
+    )
+    assert public.exit_code == 0
+    head.write_text(json.dumps({**good, "entries": [1]}))
+    result = runner.invoke(
+        app, ["ledger", "verify", str(ledger), "--public-key", str(tmp_path / "k.pub")]
+    )
+    assert result.exit_code == 1
+    assert "the head is malformed" in result.output
+    head.write_text("[1, 2]")
+    assert verify(ledger).problems == (f"head file {head} is not a JSON object",)
+
+
+def test_verify_checks_the_plan_key(case: Case, accepted: Evaluation, tmp_path: Path) -> None:
+    fingerprint = generate_key_pair(tmp_path / "k.key", tmp_path / "k.pub")
+    ledger = tmp_path / "ledger.jsonl"
+    append(ledger, accepted, signing_key=load_private_key(tmp_path / "k.key"))
+    plan = tmp_path / "plan.yaml"
+    plan.write_text(
+        case.plan.read_text(encoding="utf-8") + f'ledger_signing_key_sha256: "{fingerprint}"\n',
+        encoding="utf-8",
+    )
+    base = ["ledger", "verify", str(ledger), "--plan", str(plan)]
+    missing = runner.invoke(app, base)
+    assert missing.exit_code == 1
+    assert "no key was given" in missing.output
+    ok = runner.invoke(app, [*base, "--public-key", str(tmp_path / "k.pub")])
+    assert ok.exit_code == 0, ok.output
+    assert f"signature valid (key {fingerprint[:16]})" in ok.output
+    generate_key_pair(tmp_path / "o.key", tmp_path / "o.pub")
+    other = runner.invoke(app, [*base, "--public-key", str(tmp_path / "o.pub")])
+    assert other.exit_code == 1
+    assert "the plan pins signing key" in other.output

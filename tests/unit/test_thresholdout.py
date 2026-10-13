@@ -79,13 +79,14 @@ def test_slack_edge_cases() -> None:
     assert Slack(-0.1, 0.0, 1.0, False).z() == -math.inf
     assert Slack(-math.inf, 1.0, 0.0, False).z() == -math.inf
     assert Slack(1.0, 1.0, 1.0, False).z() < 0
-    assert Slack(0.999, 1.0, 1.0, True).z() == 0
+    assert Slack(0.999, 1.0, 1.0, True).z() > 0
+    assert aggregate({"edge": Slack(1.0, 1.0, 1.0, True)}) > 0
     assert Slack(0.3, 0.1, 1.645, True).scaled(0.2) == pytest.approx(1.5 - 1.645)
     assert aggregate({}) == math.inf
     holdout = {"a": Slack(0.3, 0.1, 1.0, True), "b": Slack(0.3, 0.0, 1.0, True)}
     assert aggregate_against({}, holdout) == -math.inf
     validation = {"a": Slack(0.2, 0.5, 1.0, False), "b": Slack(0.2, 0.5, 1.0, True)}
-    assert aggregate_against(validation, holdout) == 0.0
+    assert aggregate_against(validation, holdout) == pytest.approx(1e-12)
     validation = {"a": Slack(0.2, 0.5, 1.0, False), "b": Slack(0.2, 0.5, 1.0, False)}
     assert aggregate_against(validation, holdout) == pytest.approx(-0.6)
     assert aggregate_against({"a": Slack(0.2, 0.5, 1.0, False)}, {"a": holdout["a"]}) == 1.0

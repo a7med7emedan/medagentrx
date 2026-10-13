@@ -157,6 +157,8 @@ def _column(raw: Sequence[object]) -> _Column:
             magnitude = np.array([np.inf])
         if np.any(magnitude >= _EXACT_FLOAT_INT):
             kind = None  # float64 would round integers this large
+    if kind == "string" and any("\x00" in v for v in raw if isinstance(v, str)):
+        kind = None  # numpy strings drop trailing NUL characters
     if kind in _FILL:
         fill, dtype = _FILL[kind]
         cells[null] = fill
@@ -199,6 +201,21 @@ def evaluate_columns(
     return walk(condition)
 
 
+def _exact_targets(target: object) -> bool:
+    """False when a target needs Python's exact comparison: huge integers, NUL characters."""
+    values = target if isinstance(target, list) else [target]
+    for value in values:
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and abs(value) >= _EXACT_FLOAT_INT
+        ):
+            return False
+        if isinstance(value, str) and "\x00" in value:
+            return False
+    return True
+
+
 def _leaf_mask(leaf: LeafCondition, col: _Column) -> Mask:
     op, target = leaf.op, leaf.value
     present = ~col.null
@@ -206,7 +223,7 @@ def _leaf_mask(leaf: LeafCondition, col: _Column) -> Mask:
         return col.null.copy()
     if op == "not_null":
         return present
-    if col.kind is None:
+    if col.kind is None or not _exact_targets(target):
         return np.fromiter((_leaf(leaf, v) for v in col.raw), dtype=bool, count=len(col.raw))
     if col.kind == "empty":
         return np.zeros(len(col.raw), dtype=bool)
@@ -215,7 +232,8 @@ def _leaf_mask(leaf: LeafCondition, col: _Column) -> Mask:
     if op in ("in", "not_in"):
         assert isinstance(target, list)  # noqa: S101  # guaranteed by the model
         matching = [t for t in target if _kind(t) == col.kind]
-        found = present & np.isin(v, np.array(matching, dtype=v.dtype)) if matching else nowhere
+        # The targets keep their own dtype, so a long string is never cut to the column's width.
+        found = present & np.isin(v, np.array(matching)) if matching else nowhere
         return found if op == "in" else present & ~found
     if op == "between":
         assert isinstance(target, list)  # noqa: S101  # guaranteed by the model

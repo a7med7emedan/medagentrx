@@ -23,6 +23,9 @@ from typing import Any
 
 from medagentrx.checks.registry import Finding, Status
 
+_TINY = 1e-12
+"""Smallest slack magnitude, so a criterion on its boundary keeps the sign of its decision."""
+
 STATISTICAL_CHECKS = ("PERF-001", "PERF-002", "PERF-003", "PERF-004", "PERF-005", "LIFE-001")
 """Checks whose outcome depends on the labels of the locked test set."""
 
@@ -49,7 +52,7 @@ class Slack:
         if math.isnan(value):  # pragma: no cover  # effects and errors are finite or infinite
             return -math.inf
         # Rounding must never contradict the check's own decision.
-        return max(value, 0.0) if self.passed else min(value, -1e-12)
+        return max(value, _TINY) if self.passed else min(value, -_TINY)
 
     def scaled(self, se: float) -> float:
         """Effect over ``se``, minus the critical value, without reference to the decision."""
@@ -67,7 +70,8 @@ def _normal_critical(alpha: float) -> float:
 def _interval(effect: float, lower: float, margin: float, alpha: float, passed: bool) -> Slack:
     """Slack of an interval test: the standard error implied by its lower bound."""
     critical = _normal_critical(alpha)
-    se = (effect - lower) / critical if critical > 0 else 0.0
+    # A bootstrap percentile bound can sit on or above the estimate; keep the scale positive.
+    se = abs(effect - lower) / critical if critical > 0 else 0.0
     return Slack(effect + margin, se, critical, passed)
 
 

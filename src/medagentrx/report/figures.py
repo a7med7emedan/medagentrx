@@ -10,6 +10,10 @@ hash salts and no dates make the output byte-identical for the same input.
 
 Every figure uses shape as well as colour to show a verdict, so it stays
 readable in greyscale.
+
+The DejaVu Sans files that ship with matplotlib are registered by path. The
+figures then never depend on the user's font cache, which can be stale or
+incomplete after a virtual environment is rebuilt.
 """
 
 from __future__ import annotations
@@ -18,11 +22,16 @@ import io
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import matplotlib as mpl
+from matplotlib import font_manager
 from matplotlib.backends.backend_svg import FigureCanvasSVG
 from matplotlib.figure import Figure
+
+for _font in sorted((Path(mpl.get_data_path()) / "fonts" / "ttf").glob("DejaVuSans*.ttf")):
+    font_manager.fontManager.addfont(str(_font))
 
 TEAL = "#0F766E"
 SLATE = "#1E293B"

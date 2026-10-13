@@ -186,8 +186,14 @@ def _verified_for_append(
     path: Path, head_file: Path, signing_key: Ed25519PrivateKey | None
 ) -> Verification:
     """Verify before appending; a signed ledger stays signed."""
-    if signing_key is None and _head_is_signed(head_file):
+    signed = _head_is_signed(head_file)
+    if signing_key is None and signed:
         raise LedgerError(f"{path}: the ledger head is signed; appending needs the signing key")
+    if signing_key is not None and not signed and head_file.exists():
+        raise LedgerError(
+            f"{path}: the ledger was started without signatures, and a signature cannot vouch "
+            "for history nobody signed. Start a new ledger when the plan first pins a key."
+        )
     public_key = signing_key.public_key() if signing_key is not None else None
     result = verify(path, head_path=head_file, public_key=public_key)
     if not result.ok:
@@ -218,6 +224,8 @@ def _check_head(
         head = json.loads(head_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"head file {head_file} cannot be read ({exc})"]
+    if not isinstance(head, dict):
+        return [f"head file {head_file} is not a JSON object"]
     problems = []
     if head.get("entries") != count:
         problems.append(
@@ -350,8 +358,11 @@ def build_entry(
     """
     if evaluation.plan_id is None or evaluation.alpha_state is None:
         raise LedgerError("an evaluation with an invalid plan is not written to the ledger")
-    if kind not in ENTRY_KINDS:
-        raise LedgerError(f"unknown ledger entry kind {kind!r}")
+    if kind not in ("evaluation", "guard"):
+        raise LedgerError(
+            f"an evaluation is recorded as 'evaluation' or 'guard', not {kind!r}; "
+            "use record() for release and card records"
+        )
     before = alpha_before or evaluation.alpha_state
     guard = kind == "guard"
     state_after = before if guard else alpha_after(before, evaluation)
@@ -464,6 +475,46 @@ def _write_entry(
     _write_head(head_file, int(entry["seq"]) + 1, entry["hash"], signing_key)
 
 
+def _record_source(
+    path: Path,
+    entries: list[dict[str, Any]],
+    kind: str,
+    version: str,
+    candidate_sha256: str | None,
+) -> dict[str, Any]:
+    """The accepted evaluation a new record would follow; raises if the record is not allowed."""
+    if kind not in RECORD_KINDS:
+        raise LedgerError(f"{kind!r} is not a record kind; use one of {', '.join(RECORD_KINDS)}")
+    accepted = [
+        e
+        for e in entries
+        if e.get("kind") == "evaluation"
+        and e.get("verdict") == "ACCEPTED"
+        and e.get("candidate_version") == version
+    ]
+    if not accepted:
+        raise LedgerError(f"{path}: version {version!r} has no accepted evaluation")
+    source = accepted[-1]
+    if candidate_sha256 is not None and source["inputs"].get("candidate") != candidate_sha256:
+        raise LedgerError(
+            f"{path}: the accepted evaluation of {version!r} checked a different "
+            "candidate prediction file"
+        )
+    if any(e.get("kind") == kind and e.get("candidate_version") == version for e in entries):
+        raise LedgerError(f"{path}: version {version!r} already has a {kind} record")
+    return source
+
+
+def check_record(
+    path: Path, kind: str, version: str, *, candidate_sha256: str | None = None
+) -> None:
+    """Raise if ``record`` would refuse this record, without writing anything.
+
+    Lets a caller check before it changes other files, such as the model card.
+    """
+    _record_source(path, read_entries(path), kind, version, candidate_sha256)
+
+
 def record(
     path: Path,
     kind: str,
@@ -495,30 +546,12 @@ def record(
         LedgerError: If the ledger fails verification, the version has no
             accepted evaluation, the record exists, or the time runs backwards.
     """
-    if kind not in RECORD_KINDS:
-        raise LedgerError(f"{kind!r} is not a record kind; use one of {', '.join(RECORD_KINDS)}")
     now = now or dt.datetime.now(dt.UTC)
     head_file = head_path or head_path_for(path)
     with exclusive(path):
         result = _verified_for_append(path, head_file, signing_key)
         entries = read_entries(path)
-        accepted = [
-            e
-            for e in entries
-            if e.get("kind") == "evaluation"
-            and e.get("verdict") == "ACCEPTED"
-            and e.get("candidate_version") == version
-        ]
-        if not accepted:
-            raise LedgerError(f"{path}: version {version!r} has no accepted evaluation")
-        source = accepted[-1]
-        if candidate_sha256 is not None and source["inputs"].get("candidate") != candidate_sha256:
-            raise LedgerError(
-                f"{path}: the accepted evaluation of {version!r} checked a different "
-                "candidate prediction file"
-            )
-        if any(e.get("kind") == kind and e.get("candidate_version") == version for e in entries):
-            raise LedgerError(f"{path}: version {version!r} already has a {kind} record")
+        source = _record_source(path, entries, kind, version, candidate_sha256)
         _check_clock(entries, now)
         body: dict[str, Any] = {
             "format": LEDGER_FORMAT,

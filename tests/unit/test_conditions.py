@@ -87,7 +87,7 @@ FIELDS = ("a", "b", "c", "absent")
 literals = st.one_of(
     st.integers(-3, 3),
     st.sampled_from([0.5, -1.5, 2.0, 2**53 + 1]),
-    st.sampled_from(["", "A", "B", "2024-01-01", "2025-06-30"]),
+    st.sampled_from(["", "A", "B", "AB", "2024-01-01", "2025-06-30", "2025-06-30T12"]),
     st.booleans(),
 )
 cells = st.one_of(st.none(), literals, st.sampled_from([float("nan"), float("inf")]))
@@ -169,3 +169,25 @@ def test_vectorised_handles_large_integers_exactly() -> None:
     assert with_nan.tolist() == [False, True]
     huge = cond({"field": "id", "op": "gt", "value": 0})
     assert evaluate_columns(huge, {"id": [10**400, 1]}, 2).tolist() == [True, True]
+    beyond_float = cond({"field": "id", "op": "lt", "value": 10**400})
+    assert evaluate_columns(beyond_float, {"id": [1, None]}, 2).tolist() == [True, False]
+    listed = cond({"field": "id", "op": "in", "value": [10**400, 1]})
+    assert evaluate_columns(listed, {"id": [1, 2]}, 2).tolist() == [True, False]
+
+
+@pytest.mark.parametrize(
+    ("leaf", "column", "expected"),
+    [
+        ({"op": "in", "value": ["abcdefg"]}, ["abcde", "xyz"], [False, False]),
+        ({"op": "not_in", "value": ["abcdefg"]}, ["abcde", "xyz"], [True, True]),
+        ({"op": "in", "value": ["ICU-2"]}, ["ICU", "ICU-2", None], [False, True, False]),
+        ({"op": "eq", "value": "a"}, ["a\x00", "a"], [False, True]),
+        ({"op": "eq", "value": "a\x00"}, ["a", "b"], [False, False]),
+    ],
+)
+def test_vectorised_strings_compare_exactly(
+    leaf: dict[str, Any], column: list[object], expected: list[bool]
+) -> None:
+    condition = cond({"field": "ward", **leaf})
+    assert evaluate_columns(condition, {"ward": column}, len(column)).tolist() == expected
+    assert [evaluate(condition, {"ward": v}) for v in column] == expected

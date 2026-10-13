@@ -35,11 +35,11 @@ medagentrx fingerprint candidate.parquet
 
 ```bash
 medagentrx ledger verify ledger.jsonl --head trusted-copy/ledger.jsonl.head
-medagentrx ledger verify ledger.jsonl --public-key ledger-signing.pub
+medagentrx ledger verify ledger.jsonl --public-key ledger-signing.pub --plan change-plan.yaml
 medagentrx ledger show ledger.jsonl
 ```
 
-`verify` recomputes every hash and checks the chain against the head file. Edited, reordered or removed entries are reported, as are entries out of time order. When the plan pins a signing key, `--public-key` also checks the head's signature, and the key's fingerprint must match `ledger_signing_key_sha256` in the plan. The [ledger page](ledger.md) explains the format.
+`verify` recomputes every hash and checks the chain against the head file. Edited, reordered or removed entries are reported, as are entries out of time order. When the plan pins a signing key, `--public-key` checks the head's signature, and `--plan` checks that the key is the one `ledger_signing_key_sha256` names. A signature does not rule out a rollback to an older signed head, so compare the entry count with a head you trust. The [ledger page](ledger.md) explains the format.
 
 ## Read the plan itself
 
