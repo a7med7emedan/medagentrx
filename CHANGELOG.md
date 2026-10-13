@@ -44,4 +44,4 @@ First release candidate.
 - Self-contained HTML with inline figures, JSON with a published schema, a Markdown summary and JUnit XML. A read-only local dashboard (`[web]` extra).
 - A synthetic sepsis demo with ten planted scenarios. Versions are recalibrated on a separate development sample, not on the locked test set.
 - A GitHub Action, a GitLab CI/CD component, a pre-commit hook, and a non-root, read-only container image.
-- CodeQL, OpenSSF Scorecard, pip-audit and gitleaks in CI. Releases are published with PyPI trusted publishing, a cosign-signed image, CycloneDX SBOMs and build provenance.
+- CodeQL, OpenSSF Scorecard, pip-audit and gitleaks in CI. A release workflow that publishes to PyPI by trusted publishing and ships a cosign-signed image, CycloneDX SBOMs and build provenance.
