@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+name: Regulatory question
+description: How a plan element or check relates to the FDA PCCP guidance, the EU AI Act or the MDR.
+labels: [regulatory]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Answers here are informative and are not legal or regulatory advice. Do not share
+        confidential submission material.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Regulation or guidance it concerns

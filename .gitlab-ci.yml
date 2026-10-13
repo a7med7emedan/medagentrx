@@ -7,6 +7,7 @@ stages:
   - reference
   - integration
   - docker
+  - docs
 
 include:
   - local: templates/medagentrx.yml
@@ -108,3 +109,27 @@ nightly-validation:
   artifacts:
     paths:
       - validation-results/
+
+docs:
+  stage: docs
+  script:
+    - uv sync --locked --group docs
+    - uv run python scripts/make_docs.py
+    - git diff --exit-code docs
+    - uv run python scripts/make_figures.py --out docs/assets
+    - git diff --exit-code docs/assets
+    - uv run mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+
+pages:
+  stage: docs
+  needs: [docs]
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Publishing the documentation built by the docs job"
+  artifacts:
+    paths:
+      - public

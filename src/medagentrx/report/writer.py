@@ -17,7 +17,12 @@ from medagentrx.report.json_report import report_dict
 from medagentrx.report.junit import render_junit
 from medagentrx.report.markdown import render_markdown
 
-FORMATS = {"html": "report.html", "json": "report.json", "md": "summary.md", "junit": "junit.xml"}
+FORMATS: dict[str, str] = {
+    "html": "report.html",
+    "json": "report.json",
+    "md": "summary.md",
+    "junit": "junit.xml",
+}
 
 
 def parse_formats(text: str) -> list[str]:

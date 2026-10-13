@@ -3,30 +3,154 @@ SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# MedAgentRx
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="MedAgentRx logo: a prescription sign whose upright stroke is a gate post and whose crossing stroke is a confidence-interval whisker" width="360">
+</p>
 
-**The prescription for self-improving medical AI.** Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4)).
+<p align="center"><strong>The prescription for self-improving medical AI.</strong><br>
+Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4)).</p>
 
-AI agents and automated pipelines now retrain clinical models on their own. MedAgentRx lets them change a model only as the approved plan prescribes. The plan is one YAML file. Each update is checked against it and receives one verdict:
+<p align="center">
+  <a href="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://pypi.org/project/medagentrx/"><img alt="PyPI" src="https://img.shields.io/pypi/v/medagentrx"></a>
+  <a href="https://github.com/a7med7emedan/medagentrx/pkgs/container/medagentrx"><img alt="Container image" src="https://img.shields.io/badge/container-ghcr.io-0F766E"></a>
+  <a href="LICENSE"><img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-0F766E"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/a7med7emedan/medagentrx"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/a7med7emedan/medagentrx/badge"></a>
+</p>
+
+AI agents and automated pipelines now retrain clinical models on their own. MedAgentRx makes the approved change plan the boundary they work within. The plan is one YAML file. Every update is checked against it and gets one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including failed ones, goes into a tamper-evident ledger, so no one can keep trying candidates until one passes by chance. Behind that sits the rigour a quality team and a regulator expect: paired DeLong tests checked against R pROC, calibration, decision curves, subgroup limits with Holm correction, alpha spending across updates and a guard against bio-creep.
+
+<p align="center"><img src="docs/assets/demo.gif" alt="Terminal: medagentrx validates the example plan, then runs four planted scenarios on synthetic data; each gives its expected verdict" width="760"></p>
+
+<p align="center"><img src="docs/assets/figure-timeline.svg" alt="Update timeline: four updates each lose 0.008 AUROC and are accepted against their predecessor; the fifth reaches the drift budget against the authorised anchor and fails" width="760"></p>
+
+*Bio-creep caught: each update is non-inferior to the one before, but the fifth breaks the plan's budget against the authorised version.*
+
+## What it checks
+
+| Family | Checks | A failure means |
+|---|---|---|
+| PLAN | The plan is unchanged, the modification is listed, the intended use is the same, the update fits the plan's count and frequency | OUTSIDE_PLAN |
+| DATA | Locked test set unchanged, no training and test overlap, training data in scope, test-set looks left, population shift | OUTSIDE_PLAN, FAILED or a warning |
+| PERF | AUROC, sensitivity and specificity, calibration, net benefit and every subgroup meet the plan; power for the margin | FAILED or a warning |
+| LIFE | No bio-creep against the authorised version; alpha left | FAILED or OUTSIDE_PLAN |
+| DOC | The model card can be updated | FAILED |
+
+The [checks catalogue](docs/checks.md) lists all 18 checks with their regulatory cross-references.
+
+## Sixty-second quickstart
+
+```bash
+uvx medagentrx demo
+```
+
+The demo runs ten planted scenarios on a synthetic cohort, with no real patient data. Each must give exactly its expected verdict. Then check your own update:
+
+```bash
+medagentrx init                                   # write a commented change-plan.yaml
+medagentrx fingerprint test-predictions.parquet   # fingerprint the locked test set
+medagentrx check change-plan.yaml \
+  --candidate candidate.parquet --previous previous.parquet --anchor anchor.parquet \
+  --manifest train_manifest.parquet --model-meta model.yaml \
+  --ledger ledger.jsonl --out report/
+```
+
+The exit code is the verdict: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input error. `report/` holds a self-contained HTML report, JSON, a Markdown summary and JUnit XML. MedAgentRx reads prediction files only. It never loads a model binary.
+
+## The plan
+
+```yaml
+modifications:                 # FDA Description of Modifications
+  - {id: M1, type: retrain_same_architecture, automatic: false, scope: global}
+data_management:
+  training_inclusion:
+    all:
+      - {field: age, op: ge, value: 18}
+      - {field: site, op: in, value: [A, B, C]}
+  locked_test_set: {sha256: "e9a46f9b...", max_evaluations: 20}
+  forbid_overlap_on: [patient_id]
+performance:
+  alpha_total: 0.05
+  alpha_spending: bonferroni
+  criteria:
+    - {metric: auroc, test: non_inferiority, vs: [previous, anchor], margin: 0.02}
+    - {metric: calibration_slope, test: within, bounds: [0.8, 1.2]}
+  cumulative_drift: {metric: auroc, max_drop_vs_anchor: 0.02}
+  subgroups: {by: [sex, age_band, site], metric: auroc, max_drop: 0.03, min_events: 30,
+              on_insufficient: fail, multiplicity: holm}
+```
+
+The full example is [`examples/sepsis-risk/change-plan.yaml`](examples/sepsis-risk/change-plan.yaml). `medagentrx render-plan` turns the same file into the PCCP document, with the FDA components and the EU AI Act cross-reference, so the document and the gate cannot drift apart.
+
+## For agents
+
+```python
+from medagentrx.guard import Guard
+
+guard = Guard("change-plan.yaml", "ledger.jsonl", mode="thresholdout", previous="previous.parquet")
+decision = guard.submit("candidate.parquet", "model.yaml", manifest="train_manifest.parquet")
+decision.allowed, decision.looks_remaining
+```
+
+An agent may try only the modifications the plan marks automatic. Each try spends one look at the locked test set and returns a single noisy bit, after the reusable holdout of Dwork et al. (2015). See [For agents and AutoML](docs/agents.md).
+
+## In CI
+
+GitHub Actions:
+
+```yaml
+- uses: a7med7emedan/medagentrx@v0.1.0
+  with:
+    plan: change-plan.yaml
+    candidate: predictions/candidate.parquet
+    previous: predictions/previous.parquet
+    anchor: predictions/anchor.parquet
+    manifest: data/train_manifest.parquet
+    model-meta: model.yaml
+    ledger: governance/ledger.jsonl
+```
+
+GitLab CI/CD:
+
+```yaml
+include:
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.0
+    inputs:
+      image: <registry>/medagentrx@sha256:<digest>
+      plan: change-plan.yaml
+      # same inputs as above
+```
+
+There is also a `medagentrx-validate` pre-commit hook. See the [CI guides](docs/ci.md).
+
+## Three verdicts
 
 | Verdict | Meaning |
 |---|---|
-| `ACCEPTED` | Inside the plan and every criterion met. |
-| `FAILED` | Inside the plan, but a criterion was not met. Do not release. |
-| `OUTSIDE_PLAN` | The change is not covered by the plan. It needs a new submission. |
+| **ACCEPTED** | Inside the plan, and every criterion met. |
+| **FAILED** | Inside the plan, but a criterion was not met. Do not release. |
+| **OUTSIDE_PLAN** | Not covered by the plan. It needs a new submission. |
 
-Every evaluation is recorded in a tamper-evident ledger, including failed ones. A person or an agent therefore cannot keep trying candidates until one passes by chance.
+Warnings never change the verdict, but they always appear in the report.
 
-> **Status:** early development. The interface is not yet stable.
+## Validation
+
+<p align="center"><img src="docs/assets/validation.svg" alt="Simulation grid across prevalence 5 to 30 percent and 500 to 20,000 rows: type I error between 0.047 and 0.054, power rising with size, bootstrap coverage between 0.933 and 0.950" width="760"></p>
+
+Across a simulation grid of prevalence 5 to 30 percent and 500 to 20,000 rows, the non-inferiority test keeps its type I error between 4 and 6 percent, and the bootstrap intervals cover between 93 and 97 percent. DeLong results match R pROC to 1e-8 on AUC and 1e-6 on standard error and z. See [validation results](docs/validation.md) and [methods](docs/methods.md).
+
+## Security
+
+Inputs are data only: no unpickling, no `eval`, no user code. Plans are parsed with a hardened safe YAML loader and strict schemas. Reports are self-contained and load nothing. The container runs as a non-root user with a read-only file system, and has no HIGH or CRITICAL Trivy findings. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## Citing
+
+If you use MedAgentRx in research, please cite it using [`CITATION.cff`](CITATION.cff).
 
 ## Disclaimer
 
 MedAgentRx supports a quality management system. It is not legal or regulatory advice, does not replace your QMS or regulatory strategy, and its output is not itself a regulatory submission.
 
-## Licence
-
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
-
 ## Author
 
-Ahmed Hemedan.
+Ahmed Hemedan. Licensed under [Apache-2.0](LICENSE).

@@ -27,3 +27,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - GitHub Action, GitLab CI/CD component, `medagentrx-validate` pre-commit hook and a hardened Dockerfile.
 - Docker image of 119 MB compressed with no HIGH or CRITICAL Trivy findings, and `compose.yaml` with demo and dashboard services.
 - Statistical validation suite (type I error, power and bootstrap coverage across a simulation grid), run nightly, and a small-sample t reference for the DeLong non-inferiority test.
+- Python API (`from medagentrx import check, Verdict`), documentation site, README, logo, figures, terminal recording, social preview, security policy, citation metadata and governance.

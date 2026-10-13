@@ -1,0 +1,14 @@
+{
+  "@context": "https://w3id.org/codemeta/3.0",
+  "@type": "SoftwareSourceCode",
+  "name": "MedAgentRx",
+  "description": "Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4)).",
+  "author": [{"@type": "Person", "givenName": "Ahmed", "familyName": "Hemedan"}],
+  "license": "https://spdx.org/licenses/Apache-2.0",
+  "codeRepository": "https://github.com/a7med7emedan/medagentrx",
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python 3.11, 3.12, 3.13",
+  "version": "0.1.0.dev0",
+  "developmentStatus": "active",
+  "keywords": ["pccp", "predetermined change control plan", "medical device software", "eu-ai-act", "ai-agents", "model-governance"]
+}

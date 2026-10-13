@@ -163,35 +163,28 @@ def check(
 
     Exit codes: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
     """
-    from medagentrx.engine import evaluate
-    from medagentrx.ledger import append, exclusive, load_history, read_entries
-    from medagentrx.report.writer import parse_formats, write_reports
+    from medagentrx.api import check as run_check
+    from medagentrx.report.writer import parse_formats
 
     limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
     try:
-        formats = parse_formats(report_format)
-        ledger.parent.mkdir(parents=True, exist_ok=True)
-        with exclusive(ledger):
-            evaluation = evaluate(
-                plan=plan,
-                candidate=candidate,
-                previous=previous,
-                anchor=anchor,
-                manifest=manifest,
-                model_meta=model_meta,
-                history=load_history(ledger),
-                seed=seed,
-                n_replicates=replicates,
-                limits=limits,
-            )
-            entry = None
-            if evaluation.plan_id is not None:
-                entry = append(ledger, evaluation, already_locked=True)
-        written = write_reports(
-            out, evaluation, formats=formats, entry=entry, entries=read_entries(ledger)
+        result = run_check(
+            plan=plan,
+            candidate=candidate,
+            previous=previous,
+            anchor=anchor,
+            manifest=manifest,
+            model_meta=model_meta,
+            ledger=ledger,
+            out=out,
+            seed=seed,
+            n_replicates=replicates,
+            formats=parse_formats(report_format),
+            limits=limits,
         )
     except MedAgentRxError as exc:
         raise _fail(exc) from None
+    evaluation, entry, written = result.evaluation, result.ledger_entry, result.reports
     _print_summary(evaluation)
     for path in written.values():
         typer.echo(f"report: {path}")
