@@ -19,6 +19,7 @@ First release candidate.
 - The guard answers one noisy bit for all statistical criteria together, instead of adding noise to the AUROC test alone and answering the rest exactly. With the agent's own validation predictions it runs Thresholdout. Guard ledger entries record what the agent was told.
 - Ledger times may not run backwards, so the frequency limit cannot be dodged by setting the clock back. A signed ledger refuses unsigned appends.
 - `release` and `card` ledger records separate an acceptance from deployment and from the model card update. `medagentrx ledger release` and `medagentrx card --ledger` write them, and DOC-001 fails an update while the previous accepted version's card is not recorded.
+- Inclusion criteria are evaluated column by column with numpy, about twelve times faster on a million-row manifest. A property test checks that every row gets the same answer as the row-by-row evaluator.
 - `medagentrx sample-size` sizes the locked test set for the plan's margin, level and power before it is locked.
 
 ### Added

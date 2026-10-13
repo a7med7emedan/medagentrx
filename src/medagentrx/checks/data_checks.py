@@ -7,10 +7,12 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+import numpy as np
+
 from medagentrx.checks.context import Context
 from medagentrx.checks.registry import Breaks, Family, Finding, Status, check
 from medagentrx.io.predictions import ROW_ID
-from medagentrx.plan.conditions import evaluate
+from medagentrx.plan.conditions import evaluate_columns
 from medagentrx.stats.smd import SMD_WARNING, categorical_smd, numeric_smd
 
 EXAMPLES = 5
@@ -116,12 +118,8 @@ def training_inclusion(ctx: Context) -> Finding:
             {"manifest_sha256": ctx.manifest_sha256, "metadata": ctx.meta.training_manifest_sha256},
         )
     condition = ctx.plan.data_management.training_inclusion
-    names = list(manifest.columns)
-    failing: list[str] = []
-    for i, row_id in enumerate(manifest.row_id):
-        row = {name: manifest.columns[name][i] for name in names}
-        if not evaluate(condition, row):
-            failing.append(row_id)
+    meets = evaluate_columns(condition, manifest.columns, manifest.n)
+    failing = [manifest.row_id[i] for i in np.flatnonzero(~meets)]
     details = {"rows": manifest.n, "failing": len(failing), "examples": failing[:EXAMPLES]}
     if failing:
         return Finding(
