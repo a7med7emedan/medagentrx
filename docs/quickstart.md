@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 uvx medagentrx demo
 ```
 
-The demo builds a synthetic sepsis cohort of 20,000 test rows (no real patient data) and runs ten planted scenarios. Each must give exactly its expected verdict:
+The demo builds a synthetic sepsis cohort of 20,000 test rows (no real patient data) and runs ten planted scenarios. Each model version is recalibrated on a separate development sample, never on the locked test set, so the test set shows the small calibration error a real update carries. Each must give exactly its expected verdict:
 
 | Scenario | Planted property | Verdict | Check |
 |---|---|---|---|

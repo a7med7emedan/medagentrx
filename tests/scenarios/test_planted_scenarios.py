@@ -91,7 +91,15 @@ def test_bio_creep_story(results: dict[str, ScenarioResult]) -> None:
 
 def test_planted_properties(results: dict[str, ScenarioResult]) -> None:
     mis = _evaluation(results["miscalibrated"])
-    assert mis.finding("PERF-003").details["candidate"]["slope"] == pytest.approx(0.6, abs=0.01)
+    calibration = mis.finding("PERF-003").details
+    # Recalibrated on development data, version 2.0.0 is close to calibrated on the test set;
+    # the planted defect shrinks its slope by 0.6.
+    assert 0.9 < calibration["previous"]["slope"] < 1.2
+    ratio = calibration["candidate"]["slope"] / calibration["previous"]["slope"]
+    assert ratio == pytest.approx(0.6, abs=0.01)
+    good = _evaluation(results["good-update"]).finding("PERF-003")
+    assert good.status.value == "pass"
+    assert good.details["candidate"]["slope"] != pytest.approx(1.0, abs=1e-3)
     assert mis.finding("PERF-001").details["tests"]["vs_previous"]["delta"] == pytest.approx(
         0, abs=1e-5
     )
@@ -106,6 +114,16 @@ def test_planted_properties(results: dict[str, ScenarioResult]) -> None:
     assert scope.finding("DATA-003").details["failing"] == 150
     power = _evaluation(results["underpowered"]).finding("PERF-006").details["power"]
     assert power < 0.8
+
+
+def test_development_sample_is_separate_from_the_test_set() -> None:
+    small = make_cohort(n_test=300, n_train=10, n_development=200)
+    larger = make_cohort(n_test=300, n_train=10, n_development=400)
+    assert small.development is not None
+    assert small.development.n == 200
+    assert small.y.tolist() == larger.y.tolist()
+    assert not set(small.development.test["patient_id"]) & set(small.test["patient_id"])
+    assert small.development.development is None
 
 
 def test_cohort_is_deterministic() -> None:
