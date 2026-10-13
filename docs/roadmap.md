@@ -12,3 +12,4 @@ Planned after version 0.1:
 - DOCX export of the PCCP document.
 - MLflow and DVC integrations.
 - Connectors for real-world performance monitoring.
+- Anchoring signed ledger heads in a public transparency log, such as Sigstore Rekor.

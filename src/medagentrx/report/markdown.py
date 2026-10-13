@@ -7,8 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from medagentrx.report.build import key_deltas
-
-ICON = {"ACCEPTED": "PASS", "FAILED": "FAIL", "OUTSIDE_PLAN": "OUTSIDE PLAN"}
+from medagentrx.report.html import VERDICT_TEXT
 
 
 def _cell(text: str) -> str:
@@ -19,7 +18,9 @@ def render_markdown(report: dict[str, Any]) -> str:
     """Verdict, failed checks and key deltas as Markdown."""
     plan = report["plan"]
     lines = [
-        f"## MedAgentRx: {ICON[report['verdict']]} ({report['verdict']})",
+        f"## MedAgentRx: {report['verdict']}",
+        "",
+        VERDICT_TEXT[report["verdict"]],
         "",
         (
             f"Plan `{plan['id']}` revision {plan['revision']}. "

@@ -5,13 +5,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # Quickstart
 
-## One minute: the synthetic demo
+## The synthetic demo
 
 ```bash
 uvx medagentrx demo
 ```
 
-The demo builds a synthetic sepsis cohort of 20,000 test rows (no real patient data) and runs ten planted scenarios. Each model version is recalibrated on a separate development sample, never on the locked test set, so the test set shows the small calibration error a real update carries. Each must give exactly its expected verdict:
+The demo builds a synthetic sepsis cohort with 20,000 test rows, and no real patient data, then runs ten scenarios. Each scenario plants one property and must give exactly its expected verdict:
 
 | Scenario | Planted property | Verdict | Check |
 |---|---|---|---|
@@ -28,7 +28,9 @@ The demo builds a synthetic sepsis cohort of 20,000 test rows (no real patient d
 
 Reports for every step are written under `medagentrx-demo/`. Open any `report.html` in a browser; it works offline.
 
-## Ten minutes: your own plan
+Each model version is recalibrated on a separate development sample, never on the locked test set. The test set therefore shows the small calibration error a real update carries.
+
+## Your own plan
 
 1. **Write the plan.** `medagentrx init` asks a few questions and writes a commented `change-plan.yaml`. Every key is described in the [change plan reference](plan-reference.md).
 2. **Check it.** `medagentrx validate change-plan.yaml`.

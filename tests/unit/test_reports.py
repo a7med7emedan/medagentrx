@@ -199,7 +199,9 @@ def test_budgets_and_deltas(report: dict[str, Any]) -> None:
 
 def test_markdown_summary(report: dict[str, Any]) -> None:
     text = render_markdown(report)
-    assert text.startswith("## MedAgentRx: PASS (ACCEPTED)")
+    assert text.startswith(
+        "## MedAgentRx: ACCEPTED\n\nThe update is inside the plan and met every criterion."
+    )
     assert "| PERF-006 | warn |" in text
     assert "**Key numbers**" in text
     failing = json.loads(json.dumps(report))

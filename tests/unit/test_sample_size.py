@@ -91,6 +91,8 @@ def test_cli_options_override_the_plan() -> None:
             "0.025",
             "--power",
             "0.8",
+            "--auroc",
+            "0.8",
             "--prevalence",
             "0.12",
         ],
@@ -100,14 +102,27 @@ def test_cli_options_override_the_plan() -> None:
 
 
 def test_cli_needs_a_margin_and_a_level() -> None:
-    result = runner.invoke(app, ["sample-size", "--margin", "0.02"])
+    result = runner.invoke(
+        app, ["sample-size", "--auroc", "0.8", "--prevalence", "0.1", "--margin", "0.02"]
+    )
     assert result.exit_code == 3
     assert "--margin and --alpha" in result.output
 
 
 def test_cli_reports_impossible_requests() -> None:
     result = runner.invoke(
-        app, ["sample-size", "--margin", "0.02", "--alpha", "0.025", "--prevalence", "1.5"]
+        app,
+        [
+            "sample-size",
+            "--auroc",
+            "0.8",
+            "--margin",
+            "0.02",
+            "--alpha",
+            "0.025",
+            "--prevalence",
+            "1.5",
+        ],
     )
     assert result.exit_code == 3
     assert "prevalence" in result.output

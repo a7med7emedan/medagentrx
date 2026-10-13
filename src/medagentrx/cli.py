@@ -145,18 +145,18 @@ def fingerprint(
 
 @app.command("sample-size")
 def sample_size(
+    auroc: Annotated[
+        float, typer.Option("--auroc", help="Expected AUROC of the deployed version.")
+    ],
+    prevalence: Annotated[
+        float, typer.Option("--prevalence", help="Share of positives in the test population.")
+    ],
     plan: Annotated[
         Path | None,
         typer.Argument(
             help="Change plan to read the margin, level and power from.", metavar="PLAN"
         ),
     ] = None,
-    auroc: Annotated[
-        float, typer.Option("--auroc", help="Expected AUROC of the deployed version.")
-    ] = 0.80,
-    prevalence: Annotated[
-        float, typer.Option("--prevalence", help="Share of positives in the test population.")
-    ] = 0.10,
     margin: Annotated[
         float | None, typer.Option("--margin", help="Non-inferiority margin; overrides the plan.")
     ] = None,
@@ -307,7 +307,9 @@ def _print_summary(evaluation: Evaluation) -> None:
             typer.echo(f"  {finding.status.value.upper():4} {finding.check_id}: {finding.message}")
 
 
-ledger_app = typer.Typer(help="Inspect and verify the decision ledger.", no_args_is_help=True)
+ledger_app = typer.Typer(
+    help="Verify, inspect and add records to the decision ledger.", no_args_is_help=True
+)
 app.add_typer(ledger_app, name="ledger")
 
 
@@ -556,7 +558,7 @@ def serve(
     host: Annotated[str, typer.Option("--host", help="Address to bind.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", min=1, max=65535, help="Port to bind.")] = 8765,
 ) -> None:
-    """Serve a read-only dashboard of the ledger and reports (needs medagentrx[web])."""
+    """Serve a read-only dashboard of the ledger and reports (needs the web extra)."""
     try:
         import uvicorn
 
