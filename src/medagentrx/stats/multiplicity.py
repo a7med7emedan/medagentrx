@@ -1,6 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
-"""Multiplicity corrections across subgroups: Holm (1979) and Bonferroni.
+"""Multiplicity across subgroups: intersection-union, Holm (1979) and Bonferroni.
+
+The subgroup criterion passes only when every subgroup is non-inferior. That
+is an intersection-union test (Berger 1982): each hypothesis may be tested at
+the full level, and the family-wise error of a wrong pass stays at alpha.
+Holm and Bonferroni are valid but stricter, and remain available.
 
 ``holm`` returns, for each hypothesis, the one-sided level it was tested at
 in the step-down sequence and whether it was rejected. Intervals reported at
@@ -36,6 +41,16 @@ def _check(p_values: Sequence[float], alpha: float) -> None:
     for p in p_values:
         if not 0.0 <= p <= 1.0:
             raise StatsError(f"p-values must be in [0, 1], got {p}")
+
+
+def intersection_union(p_values: Sequence[float], alpha: float) -> Adjustment:
+    """Intersection-union test: every hypothesis is tested at alpha, with no correction."""
+    _check(p_values, alpha)
+    return Adjustment(
+        adjusted_p=tuple(p_values),
+        levels=(alpha,) * len(p_values),
+        rejected=tuple(p <= alpha for p in p_values),
+    )
 
 
 def bonferroni(p_values: Sequence[float], alpha: float) -> Adjustment:

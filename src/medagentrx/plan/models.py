@@ -307,7 +307,13 @@ class Subgroups(StrictModel):
     on_insufficient: Literal["fail", "warn"] = Field(
         description="What an insufficient-evidence subgroup does to the verdict."
     )
-    multiplicity: Literal["holm", "bonferroni"] = Field(description="Correction across subgroups.")
+    multiplicity: Literal["none", "holm", "bonferroni"] = Field(
+        description=(
+            "Correction across subgroups. 'none' is the intersection-union test: the update "
+            "passes only if every subgroup is non-inferior, so each is tested at the full "
+            "level. 'holm' and 'bonferroni' are stricter."
+        )
+    )
 
 
 class Power(StrictModel):

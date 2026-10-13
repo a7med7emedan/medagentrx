@@ -54,7 +54,7 @@ def render_plan_template(answers: PlanAnswers) -> str:
         "    max_drop: 0.03\n"
         "    min_events: 30             # positives and negatives each\n"
         "    on_insufficient: fail      # or: warn\n"
-        "    multiplicity: holm         # or: bonferroni\n"
+        "    multiplicity: none         # intersection-union; or: holm, bonferroni\n"
         if answers.subgroups
         else ""
     )

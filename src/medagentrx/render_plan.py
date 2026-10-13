@@ -151,8 +151,13 @@ def _performance_notes(plan: ChangePlan) -> list[str | Bullets]:
         outcome = "fails the update" if rule.on_insufficient == "fail" else "gives a warning"
         notes.append(
             f"Subgroups: for each level of {', '.join(rule.by)}, the AUROC may not drop more "
-            f"than {rule.max_drop:g} against the previous version, with "
-            f"{rule.multiplicity.capitalize()} correction. A subgroup with fewer than "
+            f"than {rule.max_drop:g} against the previous version, "
+            + (
+                "each tested at the full level as an intersection-union test. "
+                if rule.multiplicity == "none"
+                else f"with {rule.multiplicity.capitalize()} correction. "
+            )
+            + f"A subgroup with fewer than "
             f"{rule.min_events} positives or negatives is insufficient evidence and {outcome}."
         )
     if perf.power:

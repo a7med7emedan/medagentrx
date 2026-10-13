@@ -68,7 +68,7 @@ _BASE: dict[str, Any] = {
             "max_drop": 0.03,
             "min_events": 30,
             "on_insufficient": "fail",
-            "multiplicity": "holm",
+            "multiplicity": "none",
         },
         "power": {"min_power": 0.8},
     },
@@ -82,7 +82,7 @@ _BASE: dict[str, Any] = {
         "risks": [
             {
                 "risk": "Silent performance loss in a subgroup",
-                "mitigation": "Subgroup criterion with Holm correction",
+                "mitigation": "Subgroup criterion tested as an intersection-union test",
             },
             {
                 "risk": "Gradual drift across many small updates",
