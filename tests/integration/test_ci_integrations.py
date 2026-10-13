@@ -197,3 +197,39 @@ def test_dockerfile_purges_unused_base_packages() -> None:
     for package in ("bash", "util-linux", "perl-base", "libsystemd0", "apt"):
         assert f" {package} " in text
     assert "--network" not in text
+
+
+def _uses(node: object) -> list[str]:
+    found: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "uses" and isinstance(value, str):
+                found.append(value)
+            else:
+                found += _uses(value)
+    elif isinstance(node, list):
+        for item in node:
+            found += _uses(item)
+    return found
+
+
+def test_every_workflow_action_and_image_is_pinned() -> None:
+    workflows = sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml"))
+    assert {w.name for w in workflows} >= {
+        "ci.yml",
+        "codeql.yml",
+        "scorecard.yml",
+        "release.yml",
+        "docs.yml",
+    }
+    for workflow in [*workflows, REPO_ROOT / "action.yml"]:
+        for uses in _uses(yaml.safe_load(workflow.read_text(encoding="utf-8"))):
+            if uses.startswith("./"):
+                continue
+            assert re.search(r"@(?:[0-9a-f]{40}|sha256:[0-9a-f]{64})$", uses), (
+                f"{workflow.name}: {uses}"
+            )
+    gitlab = (REPO_ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8")
+    for image in re.findall(r"(?:ghcr\.io|docker)[\w./:-]*@sha256:[0-9a-f]+|image: (\S+)", gitlab):
+        if image and not image.startswith("$") and "uv:python" not in image:
+            assert "@sha256:" in image, image

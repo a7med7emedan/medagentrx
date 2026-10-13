@@ -8,6 +8,8 @@ stages:
   - integration
   - docker
   - docs
+  - security
+  - release
 
 include:
   - local: templates/medagentrx.yml
@@ -133,3 +135,51 @@ pages:
   artifacts:
     paths:
       - public
+
+pip-audit:
+  stage: security
+  script:
+    - uv export --frozen --all-extras --no-dev --no-emit-project --format requirements-txt > requirements.txt
+    - uvx --from pip-audit pip-audit --strict --require-hashes -r requirements.txt
+
+gitleaks:
+  stage: security
+  image:
+    name: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - gitleaks git . --redact --exit-code 1
+
+release-image:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG
+  image: docker:28.1.1@sha256:eceba5b0fc2fcf83a74c298391c2ed9e1adbdaf04ee173611bd6282ec973e7ba
+  services:
+    - name: docker:28.1.1-dind@sha256:eceba5b0fc2fcf83a74c298391c2ed9e1adbdaf04ee173611bd6282ec973e7ba
+      alias: docker
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+    IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+    - docker build --build-arg "VERSION=$CI_COMMIT_TAG" --tag "$IMAGE" .
+    - docker push "$IMAGE"
+    - DIGEST="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")"
+    - >-
+      docker run --rm -e SIGSTORE_ID_TOKEN -e DOCKER_CONFIG=/cfg -v "$HOME/.docker:/cfg:ro"
+      ghcr.io/sigstore/cosign/cosign@sha256:9e5c2f2edc34351160407ca3416c61855bdf9403c3c5936e0f0be7fc261611b8
+      sign --yes "$DIGEST"
+    - >-
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out"
+      ghcr.io/anchore/syft@sha256:3eb5379ba7b409c3f4069b686110527af0c47df993fa5c10d13e7cf34f49b1aa
+      "$DIGEST" -o cyclonedx-json=/out/image-sbom.cdx.json
+  artifacts:
+    paths:
+      - image-sbom.cdx.json

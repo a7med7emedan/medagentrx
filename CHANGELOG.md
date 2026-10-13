@@ -28,3 +28,4 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - Docker image of 119 MB compressed with no HIGH or CRITICAL Trivy findings, and `compose.yaml` with demo and dashboard services.
 - Statistical validation suite (type I error, power and bootstrap coverage across a simulation grid), run nightly, and a small-sample t reference for the DeLong non-inferiority test.
 - Python API (`from medagentrx import check, Verdict`), documentation site, README, logo, figures, terminal recording, social preview, security policy, citation metadata and governance.
+- Security workflows: CodeQL, OpenSSF Scorecard, pip-audit, gitleaks, and a release pipeline with PyPI trusted publishing, a cosign-signed image, CycloneDX SBOMs and build provenance.
