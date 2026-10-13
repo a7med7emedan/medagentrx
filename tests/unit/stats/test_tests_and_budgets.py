@@ -9,7 +9,7 @@ import pytest
 from medagentrx.errors import StatsError
 from medagentrx.stats._common import norm_ppf
 from medagentrx.stats.alpha import initial_state, next_alpha, record
-from medagentrx.stats.multiplicity import bonferroni, holm
+from medagentrx.stats.multiplicity import bonferroni, holm, intersection_union
 from medagentrx.stats.power import analytic_power, hanley_mcneil_variance, simulated_power
 from medagentrx.stats.proportions import (
     paired_proportion_test,
@@ -81,6 +81,14 @@ def test_holm_rejects_all_when_small() -> None:
     result = holm([0.001, 0.002], 0.05)
     assert result.rejected == (True, True)
     assert result.levels == (0.025, 0.05)
+
+
+def test_intersection_union() -> None:
+    result = intersection_union([0.01, 0.04, 0.06], 0.05)
+    assert result.rejected == (True, True, False)
+    assert result.levels == (0.05, 0.05, 0.05)
+    assert result.adjusted_p == (0.01, 0.04, 0.06)
+    assert intersection_union([], 0.05).rejected == ()
 
 
 def test_bonferroni() -> None:

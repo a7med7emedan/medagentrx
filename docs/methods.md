@@ -66,10 +66,12 @@ It is evaluated at each plan threshold `t`. The difference between models has a 
 
 ## Subgroups and multiplicity
 
-For each subgroup level, the AUROC difference is tested for non-inferiority with margin `max_drop`. One-sided p-values across subgroups are corrected by the Holm (1979) step-down procedure or by Bonferroni:
+For each subgroup level, the AUROC difference is tested for non-inferiority with margin `max_drop`. The update passes only if every subgroup is non-inferior. That is an intersection-union test (Berger 1982): each subgroup may be tested at the full level, and the chance of wrongly passing an update that harms some subgroup stays at most alpha. This is `multiplicity: none`, the default in `init` and the example.
 
-- Each hypothesis is tested, and its interval reported, at the level it reached in the step-down sequence.
-- Hypotheses after the first failure are reported at the level of that failure.
+Holm or Bonferroni would also bound the chance of wrongly calling any single subgroup non-inferior. The pass or fail decision on the whole update does not need that, and it makes passing harder. Both remain as stricter options:
+
+- `holm`: the Holm (1979) step-down procedure. Each hypothesis is tested, and its interval reported, at the level it reached in the step-down sequence. Hypotheses after the first failure are reported at the level of that failure.
+- `bonferroni`: every subgroup is tested at alpha divided by the number of subgroups.
 
 A subgroup with fewer than `min_events` positives or negatives is reported as insufficient evidence.
 

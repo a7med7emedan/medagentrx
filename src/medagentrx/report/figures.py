@@ -175,7 +175,7 @@ def timeline(
 
 
 def forest(subgroups: Sequence[dict[str, Any]], *, max_drop: float) -> SvgFigure:
-    """Figure 2: change in AUROC per subgroup with its Holm-adjusted interval."""
+    """Figure 2: change in AUROC per subgroup with its interval at the level it was tested."""
     rows = list(reversed(subgroups))
     with mpl.rc_context(_RC):
         fig = _figure(6.4, max(2.2, 0.32 * len(rows) + 1.0))

@@ -20,7 +20,7 @@ from medagentrx.plan.models import NonInferiorityCriterion, WithinCriterion
 from medagentrx.stats._common import t_ppf
 from medagentrx.stats.calibration import CalibrationCurve, binned_curve, calibration
 from medagentrx.stats.delong import PairedAucTest, auc_ci, delong, paired_test_from
-from medagentrx.stats.multiplicity import bonferroni, holm
+from medagentrx.stats.multiplicity import bonferroni, holm, intersection_union
 from medagentrx.stats.net_benefit import decision_curve, net_benefit_difference
 from medagentrx.stats.power import analytic_power
 from medagentrx.stats.proportions import paired_proportion_test
@@ -282,7 +282,7 @@ def net_benefit_non_inferior(ctx: Context) -> Finding:
     "Transparency principle; AI Act Art. 10 bias",
 )
 def subgroup_drop(ctx: Context) -> Finding:
-    """Per-subgroup non-inferiority against the previous version, with Holm or Bonferroni."""
+    """Per-subgroup non-inferiority against the previous version; every subgroup must pass."""
     if (skip := skipped("PERF-005", ctx)) is not None:
         return skip
     rule = ctx.plan.performance.subgroups
@@ -315,7 +315,9 @@ def subgroup_drop(ctx: Context) -> Finding:
             entry["_test"] = len(tests)
             tests.append(test)
             groups.append(entry)
-    correction = holm if rule.multiplicity == "holm" else bonferroni
+    correction = {"none": intersection_union, "holm": holm, "bonferroni": bonferroni}[
+        rule.multiplicity
+    ]
     adjustment = correction([t.p_value for t in tests], alpha)
     harmed = []
     for entry in groups:
@@ -324,10 +326,12 @@ def subgroup_drop(ctx: Context) -> Finding:
             continue
         level_used = adjustment.levels[index]
         test = tests[index]
-        half_width = t_ppf(1.0 - level_used, test.df) * test.se
+        critical = t_ppf(1.0 - level_used, test.df)
+        half_width = critical * test.se
         entry.update(
             {
                 "alpha_used": level_used,
+                "critical": critical,
                 "ci_lower": test.delta - half_width,
                 "ci_upper": test.delta + half_width,
                 "adjusted_p": adjustment.adjusted_p[index],

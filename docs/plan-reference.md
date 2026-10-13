@@ -187,7 +187,7 @@ Subgroup criterion applied to every level of every listed column.
 | `max_drop` | number (>= 0.0, < 1.0) | yes | Largest allowed drop in any subgroup. |
 | `min_events` | integer (>= 1) | yes | Positives and negatives each needed, else insufficient evidence. |
 | `on_insufficient` | `fail` or `warn` | yes | What an insufficient-evidence subgroup does to the verdict. |
-| `multiplicity` | `holm` or `bonferroni` | yes | Correction across subgroups. |
+| `multiplicity` | `none` or `holm` or `bonferroni` | yes | Correction across subgroups. 'none' is the intersection-union test: the update passes only if every subgroup is non-inferior, so each is tested at the full level. 'holm' and 'bonferroni' are stricter. |
 
 ## UpdateFrequency
 

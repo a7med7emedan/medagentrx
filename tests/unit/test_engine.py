@@ -144,7 +144,7 @@ def test_good_update_is_accepted(good_eval: Evaluation) -> None:
         "manifest",
         "model_meta",
     }
-    assert good_eval.finding("PERF-005").details["multiplicity"] == "holm"
+    assert good_eval.finding("PERF-005").details["multiplicity"] == "none"
     with pytest.raises(KeyError):
         good_eval.finding("NOPE-001")
 
@@ -410,6 +410,23 @@ def test_bonferroni_subgroups(tmp_path: Path) -> None:
     assert finding.status is Status.PASS
     levels = [g["alpha_used"] for g in finding.details["subgroups"]]
     assert levels == [pytest.approx((0.05 / 12) / 8)] * 8
+
+
+def test_subgroup_corrections_only_make_passing_harder(tmp_path: Path) -> None:
+    levels = {}
+    for method in ("none", "holm", "bonferroni"):
+
+        def edit(plan: dict[str, Any], method: str = method) -> None:
+            plan["performance"]["subgroups"]["multiplicity"] = method
+
+        finding = run(make_case(tmp_path / method, plan_edit=edit)).finding("PERF-005")
+        levels[method] = [g["alpha_used"] for g in finding.details["subgroups"]]
+        widths = [g["ci_upper"] - g["ci_lower"] for g in finding.details["subgroups"]]
+        assert all(w > 0 for w in widths)
+    alpha = levels["none"][0]
+    assert levels["none"] == [alpha] * 8
+    assert all(h <= alpha for h in levels["holm"])
+    assert all(b <= h for b, h in zip(levels["bonferroni"], levels["holm"], strict=True))
 
 
 def test_underpowered(tmp_path: Path) -> None:

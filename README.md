@@ -18,7 +18,7 @@ Every model update, by an engineer, a pipeline or an AI agent, is checked agains
   <a href="https://scorecard.dev/viewer/?uri=github.com/a7med7emedan/medagentrx"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/a7med7emedan/medagentrx/badge"></a>
 </p>
 
-AI agents and automated pipelines now retrain clinical models on their own. MedAgentRx makes the approved change plan the boundary they work within. The plan is one YAML file. Every update is checked against it and gets one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including failed ones, goes into a tamper-evident ledger, so no one can keep trying candidates until one passes by chance. Behind that sits the rigour a quality team and a regulator expect: paired DeLong tests checked against R pROC, calibration, decision curves, subgroup limits with Holm correction, alpha spending across updates and a guard against bio-creep.
+AI agents and automated pipelines now retrain clinical models on their own. MedAgentRx makes the approved change plan the boundary they work within. The plan is one YAML file. Every update is checked against it and gets one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including failed ones, goes into a tamper-evident ledger, so no one can keep trying candidates until one passes by chance. Behind that sits the rigour a quality team and a regulator expect: paired DeLong tests checked against R pROC, calibration, decision curves, subgroup limits tested as an intersection-union test, alpha spending across updates and a guard against bio-creep.
 
 <p align="center"><img src="docs/assets/demo.gif" alt="Terminal: medagentrx validates the example plan, then runs four planted scenarios on synthetic data; each gives its expected verdict" width="760"></p>
 
@@ -77,7 +77,7 @@ performance:
     - {metric: calibration_slope, test: within, bounds: [0.8, 1.2]}
   cumulative_drift: {metric: auroc, max_drop_vs_anchor: 0.02}
   subgroups: {by: [sex, age_band, site], metric: auroc, max_drop: 0.03, min_events: 30,
-              on_insufficient: fail, multiplicity: holm}
+              on_insufficient: fail, multiplicity: none}
 ```
 
 The full example is [`examples/sepsis-risk/change-plan.yaml`](examples/sepsis-risk/change-plan.yaml). `medagentrx render-plan` turns the same file into the PCCP document, with the FDA components and the EU AI Act cross-reference, so the document and the gate cannot drift apart.

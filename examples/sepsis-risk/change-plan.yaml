@@ -58,7 +58,7 @@ performance:                   # FDA Modification Protocol, element 3
     max_drop: 0.03
     min_events: 30             # positives and negatives each, else insufficient evidence
     on_insufficient: fail      # or: warn
-    multiplicity: holm
+    multiplicity: none
   power:
     min_power: 0.80            # warn if the test set cannot detect the margin
 
@@ -70,7 +70,7 @@ update_procedures:             # FDA Modification Protocol, element 4
 impact_assessment:             # FDA third component
   benefits: "Keeps the score current as case-mix changes"
   risks:
-    - {risk: "Silent performance loss in a subgroup", mitigation: "Subgroup criterion with Holm correction"}
+    - {risk: "Silent performance loss in a subgroup", mitigation: "Subgroup criterion tested as an intersection-union test"}
     - {risk: "Gradual drift across many small updates", mitigation: "Cumulative drift guard vs anchor"}
 
 regulatory_map:                # informative cross-reference, rendered in the plan document

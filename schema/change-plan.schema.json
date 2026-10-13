@@ -673,8 +673,9 @@
           "type": "string"
         },
         "multiplicity": {
-          "description": "Correction across subgroups.",
+          "description": "Correction across subgroups. 'none' is the intersection-union test: the update passes only if every subgroup is non-inferior, so each is tested at the full level. 'holm' and 'bonferroni' are stricter.",
           "enum": [
+            "none",
             "holm",
             "bonferroni"
           ],

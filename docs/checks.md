@@ -61,7 +61,7 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 
 **PERF-004: Net benefit at clinical thresholds is non-inferior (paired bootstrap).** Paired bootstrap percentile interval of the net benefit difference at each threshold.
 
-**PERF-005: No subgroup loses more than the allowed AUROC.** Per-subgroup non-inferiority against the previous version, with Holm or Bonferroni.
+**PERF-005: No subgroup loses more than the allowed AUROC.** Per-subgroup non-inferiority against the previous version; every subgroup must pass.
 
 **PERF-006: Test set has power to detect the margin.** Analytic power of the AUROC test against the previous version.
 

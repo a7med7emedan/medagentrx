@@ -60,9 +60,10 @@ def test_document_states_the_plan(document_md: str) -> None:
         "| Net benefit at thresholds 0.1, 0.2, 0.3 | Non-inferiority | previous | margin 0.005 |",
         "| Calibration slope | Within bounds | candidate only | [0.8, 1.2] |",
         "-0.02",
-        "with Holm correction",
+        "each tested at the full level as an intersection-union test",
         "| PERF-005 |",
-        "| Silent performance loss in a subgroup | Subgroup criterion with Holm correction |",
+        "| Silent performance loss in a subgroup | Subgroup criterion tested as an "
+        "intersection-union test |",
         "not legal or regulatory advice",
     ):
         assert fragment in document_md, fragment
