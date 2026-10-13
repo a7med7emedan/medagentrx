@@ -164,3 +164,21 @@ jobs:
           git diff --exit-code docs/assets
       - name: Build the site, warnings are errors
         run: uv run mkdocs build --strict
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+      - name: Known vulnerabilities in locked dependencies
+        run: |
+          uv export --frozen --all-extras --no-dev --no-emit-project --format requirements-txt > requirements.txt
+          uvx --from pip-audit pip-audit --strict --require-hashes -r requirements.txt
+      - name: No secrets in the full history
+        run: >-
+          docker run --rm -v "$PWD:/repo"
+          ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --redact --exit-code 1
