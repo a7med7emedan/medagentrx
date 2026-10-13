@@ -28,6 +28,10 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run reuse lint
+      - name: Validation figure is reproducible
+        run: |
+          uv run python scripts/validation.py --out docs/assets --figure-only
+          git diff --exit-code docs/assets
       - name: actionlint
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667  # 1.7.12
         with:

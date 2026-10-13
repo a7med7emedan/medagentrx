@@ -17,10 +17,12 @@ Non-inferiority of a new model against a reference with margin `delta`:
 
 - H0: `AUC_new - AUC_ref <= -delta`.
 - Statistic: `z = (estimate + delta) / SE`, where `SE` comes from the paired covariance.
-- H0 is rejected when `z > z(1 - alpha_k)`.
-- The report gives the one-sided p-value and the two-sided `(1 - 2 alpha_k)` interval. Its lower bound exceeds `-delta` exactly when H0 is rejected.
+- H0 is rejected when `z` exceeds the `1 - alpha_k` quantile of a Student t distribution with `min(positives, negatives) - 1` degrees of freedom.
+- The report gives the one-sided p-value and the two-sided `(1 - 2 alpha_k)` interval with the same critical value. Its lower bound exceeds `-delta` exactly when H0 is rejected.
 
-At least two positives and two negatives are needed for a variance.
+**Small-sample reference.** The normal reference is the usual large-sample form of the DeLong test. In the validation grid it gave a type I error of 0.060 with 25 positives, at the edge of the accepted band. The t reference brings this to 0.054 and differs from the normal quantile only in the third decimal once there are hundreds of events. The statistic, its standard error and the agreement with pROC are unchanged.
+
+At least two positives and two negatives are needed for a variance. Subgroup intervals use the same t reference with each subgroup's own degrees of freedom.
 
 **Validation.** On four fixed datasets, including one with heavy ties, the AUC agrees with pROC 1.19 (`roc.test(method = "delong", paired = TRUE)`) within 1e-8, and the standard errors and `z` within 1e-6. CI recomputes the pROC values on every run.
 

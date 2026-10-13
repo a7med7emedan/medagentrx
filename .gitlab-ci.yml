@@ -42,6 +42,8 @@ lint:
     - uv run ruff format --check .
     - uv run mypy
     - uv run reuse lint
+    - uv run python scripts/validation.py --out docs/assets --figure-only
+    - git diff --exit-code docs/assets
 
 test:
   stage: test
@@ -93,3 +95,16 @@ docker-image:
       docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
       aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
       image --severity HIGH,CRITICAL --exit-code 1 --scanners vuln --no-progress medagentrx:ci
+
+nightly-validation:
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 2h
+  script:
+    - uv sync --locked
+    - uv run pytest -m slow --no-cov tests/validation
+    - uv run python scripts/validation.py --out validation-results
+  artifacts:
+    paths:
+      - validation-results/

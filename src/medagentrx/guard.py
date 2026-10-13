@@ -39,7 +39,6 @@ from medagentrx.io.metadata import load_model_meta
 from medagentrx.ledger import append, exclusive, load_history
 from medagentrx.plan import load_plan
 from medagentrx.plan.models import Modification
-from medagentrx.stats._common import norm_ppf
 
 Mode = Literal["thresholdout", "exact"]
 DEFAULT_NOISE_SCALE = 1.0
@@ -197,7 +196,7 @@ class Guard:
         margin = 0.0
         if tests:
             margin = min(
-                (t["delta"] + t["margin"]) / t["se"] - norm_ppf(1.0 - t["alpha"])
+                (t["delta"] + t["margin"]) / t["se"] - t["critical"]
                 if t["se"] > 0
                 else (np.inf if t["non_inferior"] else -np.inf)
                 for t in tests.values()
