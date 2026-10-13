@@ -226,3 +226,42 @@ def population_shift(ctx: Context) -> Finding:
     return Finding(
         "DATA-005", Status.PASS, f"No feature shifts by more than {SMD_WARNING} SMD", details
     )
+
+
+@check(
+    "DATA-006",
+    Family.DATA,
+    "Prediction files are the ones the models produced",
+    Breaks.OUTSIDE_PLAN,
+    "Traceability; Modification Protocol, update procedures",
+)
+def prediction_provenance(ctx: Context) -> Finding:
+    """Bind each prediction file to its model.
+
+    The candidate file must match ``predictions_sha256`` in its metadata. The
+    previous file must match the predictions recorded when that version was
+    released, if the ledger holds them. The anchor file must match
+    ``anchor_predictions_sha256`` in the plan, if the plan records it.
+    """
+    actual = ctx.prediction_sha256
+    expected: dict[str, str | None] = {
+        "candidate": ctx.meta.predictions_sha256,
+        "previous": ctx.history.released_predictions.get(ctx.meta.previous_version),
+        "anchor": ctx.plan.anchor_predictions_sha256,
+    }
+    mismatched = [
+        role for role, want in expected.items() if want is not None and actual[role] != want
+    ]
+    unchecked = [role for role, want in expected.items() if want is None]
+    details = {"expected": expected, "actual": actual, "not_bound": unchecked}
+    if mismatched:
+        return Finding(
+            "DATA-006",
+            Status.FAIL,
+            "Prediction file(s) differ from the recorded model output: " + ", ".join(mismatched),
+            details,
+        )
+    text = "Prediction files match the recorded model outputs"
+    if unchecked:
+        text += f" ({', '.join(unchecked)} not yet bound)"
+    return Finding("DATA-006", Status.PASS, text, details)

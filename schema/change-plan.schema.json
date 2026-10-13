@@ -817,6 +817,21 @@
       "title": "Anchor Version",
       "type": "string"
     },
+    "anchor_predictions_sha256": {
+      "anyOf": [
+        {
+          "description": "SHA-256 digest as 64 lowercase hex characters.",
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "SHA-256 of the anchor's prediction file on the locked test set, recorded at authorisation. When given, the anchor file of every check must match it.",
+      "title": "Anchor Predictions Sha256"
+    },
     "max_updates": {
       "description": "Updates allowed under this plan.",
       "minimum": 1,

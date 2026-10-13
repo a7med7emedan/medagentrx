@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib import resources
@@ -147,6 +148,7 @@ def _meta(
     version: str,
     previous: str,
     manifest: Path,
+    predictions: Path,
     modification: str = "M1",
     architecture: str = "1" * 64,
 ) -> Path:
@@ -158,6 +160,7 @@ def _meta(
         "intended_use_sha256": INTENDED_USE_SHA256,
         "trained_at": "2026-04-01T08:00:00+00:00",
         "training_manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "predictions_sha256": hashlib.sha256(predictions.read_bytes()).hexdigest(),
     }
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return path
@@ -215,6 +218,7 @@ def _case(
         version=version,
         previous=previous_version,
         manifest=manifest,
+        predictions=candidate,
         modification=modification,
         architecture=architecture,
     )
@@ -352,6 +356,9 @@ def build_bio_creep(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
             version=f"2.{k}.0",
             previous_version=f"2.{k - 1}.0",
         )
+        if steps:
+            # The previous version's predictions are the file it was released with.
+            shutil.copyfile(steps[-1]["inputs"]["candidate"], case["previous"])
         steps.append(
             {"inputs": case, "now": START + dt.timedelta(days=92 * (k - 1)), "directory": directory}
         )

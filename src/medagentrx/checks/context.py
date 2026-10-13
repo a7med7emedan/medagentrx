@@ -40,6 +40,7 @@ class Context:
         mismatches: Row mismatch per comparator file, empty when aligned.
         manifest: Training data manifest.
         manifest_sha256: SHA-256 of the manifest file.
+        prediction_sha256: SHA-256 of the candidate, previous and anchor files, by role.
         test_features: Feature columns present in both the manifest and the test file.
         history: Budgets used by earlier evaluations.
         alpha_state: Alpha accounting before this evaluation.
@@ -58,6 +59,7 @@ class Context:
     mismatches: dict[str, RowMismatch]
     manifest: Manifest
     manifest_sha256: str
+    prediction_sha256: dict[str, str]
     test_features: dict[str, tuple[str, ...]]
     history: History
     alpha_state: AlphaState

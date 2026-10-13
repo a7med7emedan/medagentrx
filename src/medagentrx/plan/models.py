@@ -395,6 +395,13 @@ class ChangePlan(StrictModel):
     anchor_version: Annotated[str, Field(min_length=1, max_length=64)] = Field(
         description="The originally authorised model version. It never changes."
     )
+    anchor_predictions_sha256: Sha256 | None = Field(
+        default=None,
+        description=(
+            "SHA-256 of the anchor's prediction file on the locked test set, recorded at "
+            "authorisation. When given, the anchor file of every check must match it."
+        ),
+    )
     max_updates: int = Field(ge=1, description="Updates allowed under this plan.")
     update_frequency: UpdateFrequency = Field(description="Release frequency limit.")
     modifications: list[Modification] = Field(

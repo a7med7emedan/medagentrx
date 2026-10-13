@@ -11,6 +11,10 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 
 First release candidate.
 
+### Added after review
+
+- DATA-006 binds each prediction file to its model: the candidate to `predictions_sha256` in its metadata, the previous version to its recorded release, and optionally the anchor to `anchor_predictions_sha256` in the plan.
+
 ### Added
 
 - Package scaffold, licensing, linting and continuous integration skeleton.

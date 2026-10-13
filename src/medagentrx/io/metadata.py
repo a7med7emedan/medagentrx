@@ -33,6 +33,12 @@ class ModelMeta(BaseModel):
     intended_use_sha256: Sha256 = Field(description="SHA-256 of the intended-use statement.")
     trained_at: dt.datetime | dt.date = Field(description="When training finished, ISO 8601.")
     training_manifest_sha256: Sha256 = Field(description="SHA-256 of the training manifest.")
+    predictions_sha256: Sha256 = Field(
+        description=(
+            "SHA-256 of this model's prediction file on the locked test set. "
+            "It binds the predictions that are checked to the model they came from."
+        )
+    )
 
 
 def load_model_meta(

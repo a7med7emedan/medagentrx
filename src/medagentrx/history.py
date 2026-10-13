@@ -35,6 +35,8 @@ class History:
         releases: Accepted updates, oldest first.
         alpha: Alpha state after the last formal evaluation, or None if none yet.
         entries: Number of ledger entries this summary was read from.
+        released_predictions: SHA-256 of the candidate prediction file of each
+            released version, by version.
     """
 
     plan_id: str | None = None
@@ -44,3 +46,4 @@ class History:
     releases: tuple[Release, ...] = field(default_factory=tuple)
     alpha: AlphaState | None = None
     entries: int = 0
+    released_predictions: dict[str, str] = field(default_factory=dict)

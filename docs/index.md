@@ -30,10 +30,10 @@ Input and usage errors exit with 3. Warnings never change the verdict, but they 
 
 ## What it checks
 
-Eighteen checks in five families run on every update. The [checks catalogue](checks.md) lists them all.
+Nineteen checks in five families run on every update. The [checks catalogue](checks.md) lists them all.
 
 - **PLAN**: the plan is unchanged, the modification is listed, the intended use is the same, and the update fits the plan's count and frequency.
-- **DATA**: the locked test set is unchanged, training and test data do not overlap, training data meets the inclusion criteria, and the test set has looks left.
+- **DATA**: the locked test set is unchanged, training and test data do not overlap, training data meets the inclusion criteria, the test set has looks left, and each prediction file is the one its model produced.
 - **PERF**: AUROC, sensitivity and specificity, calibration, net benefit and every subgroup meet the plan's criteria, and the test set has power for the margin.
 - **LIFE**: the model has not drifted from the authorised version (bio-creep), and alpha remains.
 - **DOC**: the model card can be updated.
