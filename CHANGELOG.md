@@ -11,35 +11,37 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 
 First release candidate.
 
-### Added after review
+### The gate
 
-- DATA-006 binds each prediction file to its model: the candidate to `predictions_sha256` in its metadata, the previous version to its recorded release, and optionally the anchor to `anchor_predictions_sha256` in the plan.
-- Ed25519 signatures on the ledger head. `ledger keygen` makes a key pair, the plan can pin the key with `ledger_signing_key_sha256`, `check --signing-key` and the guard sign each head, and `ledger verify --public-key` checks the signature.
-- Subgroups are tested as an intersection-union test (`multiplicity: none`), since the update passes only if every subgroup is non-inferior. Holm and Bonferroni remain as stricter options.
-- The guard answers one noisy bit for all statistical criteria together, instead of adding noise to the AUROC test alone and answering the rest exactly. With the agent's own validation predictions it runs Thresholdout. Guard ledger entries record what the agent was told.
-- Ledger times may not run backwards, so the frequency limit cannot be dodged by setting the clock back. A signed ledger refuses unsigned appends.
-- `release` and `card` ledger records separate an acceptance from deployment and from the model card update. `medagentrx ledger release` and `medagentrx card --ledger` write them, and DOC-001 fails an update while the previous accepted version's card is not recorded.
-- The demo recalibrates every version on a separate development sample instead of the locked test set, so the test set sees honest, out-of-sample calibration. The example data and figures are rebuilt from it.
-- Inclusion criteria are evaluated column by column with numpy, about twelve times faster on a million-row manifest. A property test checks that every row gets the same answer as the row-by-row evaluator.
-- `medagentrx sample-size` sizes the locked test set for the plan's margin, level and power before it is locked.
+- Change plans as YAML with a published JSON Schema, parsed by a hardened loader: no anchors or aliases, no duplicate keys, JSON types only. `validate`, `schema`, `init` and `render-plan`, which writes the PCCP document from the same file.
+- Nineteen checks in five families (PLAN, DATA, PERF, LIFE, DOC) and three verdicts, returned as the exit code.
+- Prediction files are bound to the models that produced them (DATA-006), and the locked test set to its canonical fingerprint (DATA-001).
+- Inclusion criteria are evaluated column by column with numpy, about twelve times faster than row by row on a million-row manifest.
 
-### Added
+### Statistics
 
-- Package scaffold, licensing, linting and continuous integration skeleton.
-- Change-plan model with JSON Schema, hardened YAML loader, and the `validate`, `schema` and `init` commands.
-- Example plan for a synthetic sepsis risk score.
-- CSV and Parquet loaders for predictions, training manifest and model metadata, with size limits and path guards.
-- Canonical locked test-set fingerprint and the `fingerprint` command.
-- Statistics core: DeLong AUROC tests (cross-checked against R pROC), paired stratified bootstrap with BCa intervals, Tango paired proportions, calibration, net benefit, Holm and Bonferroni, alpha spending, power and standardised mean differences.
-- Check registry with the 18 PLAN, DATA, PERF, LIFE and DOC checks, the evaluation engine and the verdict rule.
-- Hash-chained decision ledger with a head file, budgets read back from it, `ledger verify` and `ledger show`, and the `check` command writing `report.json`.
-- Synthetic sepsis demo cohort, nine planted scenarios with exact expected verdicts, the `demo` command, and example data in `examples/sepsis-risk`.
-- Reports: self-contained HTML with five inline SVG figures, JSON with a published schema, a Markdown summary for pull and merge requests, and JUnit XML.
-- `render-plan` writes the PCCP document (FDA components, EU cross-reference, executable check map) and `card` maintains the model card.
-- Agent guard with thresholdout and exact modes, the peeking-agent scenario, and an agent loop example.
-- Read-only web dashboard (`medagentrx serve`, extra `[web]`) with strict security headers.
-- GitHub Action, GitLab CI/CD component, `medagentrx-validate` pre-commit hook and a hardened Dockerfile.
-- Docker image of 119 MB compressed with no HIGH or CRITICAL Trivy findings, and `compose.yaml` with demo and dashboard services.
-- Statistical validation suite (type I error, power and bootstrap coverage across a simulation grid), run nightly, and a small-sample t reference for the DeLong non-inferiority test.
-- Python API (`from medagentrx import check, Verdict`), documentation site, README, logo, figures, terminal recording, social preview, security policy, citation metadata and governance.
-- Security workflows: CodeQL, OpenSSF Scorecard, pip-audit, gitleaks, and a release pipeline with PyPI trusted publishing, a cosign-signed image, CycloneDX SBOMs and build provenance.
+- Paired DeLong AUROC tests with a Student t reference for small samples, matching R pROC to 1e-8.
+- Tango score intervals for sensitivity and specificity, calibration slope and intercept, net benefit with paired stratified bootstrap intervals.
+- Subgroup non-inferiority as an intersection-union test, with Holm and Bonferroni as stricter options.
+- Bonferroni and alpha-investing spending across the life of the plan, and a cumulative check against the authorised version.
+- `sample-size`, which sizes the locked test set for the plan's margin, level and power.
+- A simulation suite for type I error, power and coverage, run nightly.
+
+### Ledger
+
+- Hash-chained, append-only, with a head file, a lock and refusal of stale evaluations. The plan's budgets are read back from it.
+- Optional Ed25519 signatures on the head, with the key pinned in the plan (`ledger keygen`, `check --signing-key`, `ledger verify --public-key`).
+- Entries may not run backwards in time, so the frequency limit cannot be dodged by setting the clock back.
+- `card` and `release` records separate an acceptance from the model card update and from deployment. DOC-001 fails an update while the previous version's card is not recorded.
+
+### Agents
+
+- `Guard` limits an agent to the plan's automatic modifications and spends a test-set look per try.
+- Thresholdout mode answers one noisy bit for all statistical criteria together. With the agent's validation predictions it follows Thresholdout (Dwork et al. 2015). The ledger records what the agent was told.
+
+### Reports and integrations
+
+- Self-contained HTML with inline figures, JSON with a published schema, a Markdown summary and JUnit XML. A read-only local dashboard (`[web]` extra).
+- A synthetic sepsis demo with ten planted scenarios. Versions are recalibrated on a separate development sample, not on the locked test set.
+- A GitHub Action, a GitLab CI/CD component, a pre-commit hook, and a non-root, read-only container image.
+- CodeQL, OpenSSF Scorecard, pip-audit and gitleaks in CI. Releases are published with PyPI trusted publishing, a cosign-signed image, CycloneDX SBOMs and build provenance.

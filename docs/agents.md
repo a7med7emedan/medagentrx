@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # For agents and AutoML
 
-AutoML loops and coding agents now retrain clinical models on their own. MedAgentRx makes the approved plan the leash: an agent may change the model only as the plan prescribes, with a capped number of looks at the locked test set.
+AutoML loops and coding agents can now retrain a clinical model without a person in the loop. With MedAgentRx, an agent may change the model only in the ways the plan marks as automatic, and only within a fixed number of looks at the locked test set.
 
 ## The guard
 

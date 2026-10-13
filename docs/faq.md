@@ -18,7 +18,7 @@ The locked test set loses its value if it is used to pick among many candidates.
 A series of updates, each only slightly worse than the one before, can drift a long way from the authorised model. LIFE-001 compares every update with the anchor as well as with its predecessor.
 
 **Can an agent use MedAgentRx directly?**
-Yes. The [guard](agents.md) lets an agent try only the modifications the plan marks automatic, spends a look per try, and in thresholdout mode returns a single noisy bit.
+Yes. The [guard](agents.md) lets an agent try only the modifications the plan marks automatic and spends a look per try. In thresholdout mode it answers with one noisy bit for the whole plan, and with the agent's own validation data it runs Thresholdout.
 
 **Is the output a regulatory submission?**
 No. MedAgentRx supports a quality management system. Its reports are evidence for that system, not a submission.

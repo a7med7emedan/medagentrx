@@ -18,13 +18,23 @@ Every model update, by an engineer, a pipeline or an AI agent, is checked agains
   <a href="https://scorecard.dev/viewer/?uri=github.com/a7med7emedan/medagentrx"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/a7med7emedan/medagentrx/badge"></a>
 </p>
 
-AI agents and automated pipelines now retrain clinical models on their own. MedAgentRx makes the approved change plan the boundary they work within. The plan is one YAML file. Every update is checked against it and gets one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including failed ones, goes into a tamper-evident ledger, so no one can keep trying candidates until one passes by chance. Behind that sits the rigour a quality team and a regulator expect: paired DeLong tests checked against R pROC, calibration, decision curves, subgroup limits tested as an intersection-union test, alpha spending across updates and a guard against bio-creep.
+Clinical risk models are increasingly retrained by scheduled pipelines and by AI agents. Regulators allow this only for changes agreed in advance, in a Predetermined Change Control Plan in the US or under Article 43(4) of the EU AI Act. MedAgentRx turns that plan into a test that runs on every update.
+
+The plan is a single YAML file. Each candidate update is evaluated against it and receives one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation is appended to a hash-chained ledger, failures included, and the plan's limits are read back from it. Repeated attempts use up the plan's budget of test-set looks, so nobody can keep submitting candidates until one passes by chance.
+
+The statistics are the ones a reviewer will ask about:
+
+- paired DeLong tests, matching R pROC to 1e-8;
+- calibration slope and intercept, and net benefit at clinical thresholds;
+- subgroup non-inferiority;
+- alpha spending across the life of the plan;
+- a cumulative check against the authorised version, which stops slow drift.
 
 <p align="center"><img src="docs/assets/demo.gif" alt="Terminal: medagentrx validates the example plan, then runs four planted scenarios on synthetic data; each gives its expected verdict" width="760"></p>
 
 <p align="center"><img src="docs/assets/figure-timeline.svg" alt="Update timeline: four updates each lose 0.008 AUROC and are accepted against their predecessor; the fifth reaches the drift budget against the authorised anchor and fails" width="760"></p>
 
-*Bio-creep caught: each update is non-inferior to the one before, but the fifth breaks the plan's budget against the authorised version.*
+*Five updates, each non-inferior to the one before. The fifth exceeds the plan's drift budget against the authorised version and fails.*
 
 ## What it checks
 
@@ -34,20 +44,21 @@ AI agents and automated pipelines now retrain clinical models on their own. MedA
 | DATA | Locked test set unchanged, no training and test overlap, training data in scope, test-set looks left, population shift, prediction files bound to their models | OUTSIDE_PLAN, FAILED or a warning |
 | PERF | AUROC, sensitivity and specificity, calibration, net benefit and every subgroup meet the plan; power for the margin | FAILED or a warning |
 | LIFE | No bio-creep against the authorised version; alpha left | FAILED or OUTSIDE_PLAN |
-| DOC | The model card can be updated | FAILED |
+| DOC | The model card is kept up to date across versions | FAILED |
 
 The [checks catalogue](docs/checks.md) lists all 19 checks with their regulatory cross-references.
 
-## Sixty-second quickstart
+## Quick start
 
 ```bash
 uvx medagentrx demo
 ```
 
-The demo runs ten planted scenarios on a synthetic cohort, with no real patient data. Each must give exactly its expected verdict. Then check your own update:
+This runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
 
 ```bash
 medagentrx init                                   # write a commented change-plan.yaml
+medagentrx sample-size change-plan.yaml --auroc 0.80 --prevalence 0.12
 medagentrx fingerprint test-predictions.parquet   # fingerprint the locked test set
 medagentrx check change-plan.yaml \
   --candidate candidate.parquet --previous previous.parquet --anchor anchor.parquet \
@@ -55,7 +66,7 @@ medagentrx check change-plan.yaml \
   --ledger ledger.jsonl --out report/
 ```
 
-The exit code is the verdict: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input error. `report/` holds a self-contained HTML report, JSON, a Markdown summary and JUnit XML. MedAgentRx reads prediction files only. It never loads a model binary.
+The exit code is the verdict: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input error. `report/` holds a self-contained HTML report, JSON, a Markdown summary and JUnit XML. MedAgentRx reads prediction files only and never loads a model binary.
 
 ## The plan
 
@@ -82,7 +93,7 @@ performance:
 
 The full example is [`examples/sepsis-risk/change-plan.yaml`](examples/sepsis-risk/change-plan.yaml). `medagentrx render-plan` turns the same file into the PCCP document, with the FDA components and the EU AI Act cross-reference, so the document and the gate cannot drift apart.
 
-## For agents
+## Automated retraining and agents
 
 ```python
 from medagentrx.guard import Guard
@@ -94,7 +105,7 @@ decision.allowed, decision.looks_remaining
 
 An agent may try only the modifications the plan marks automatic. Each try spends one look at the locked test set and returns one noisy bit for all the plan's criteria together. Given the agent's own validation predictions, the guard runs Thresholdout (Dwork et al. 2015) and answers from them whenever they agree with the test set. See [For agents and AutoML](docs/agents.md).
 
-## In CI
+## Continuous integration
 
 GitHub Actions:
 
@@ -123,7 +134,7 @@ include:
 
 There is also a `medagentrx-validate` pre-commit hook. See the [CI guides](docs/ci.md).
 
-## Three verdicts
+## Verdicts
 
 | Verdict | Meaning |
 |---|---|
@@ -131,13 +142,13 @@ There is also a `medagentrx-validate` pre-commit hook. See the [CI guides](docs/
 | **FAILED** | Inside the plan, but a criterion was not met. Do not release. |
 | **OUTSIDE_PLAN** | Not covered by the plan. It needs a new submission. |
 
-Warnings never change the verdict, but they always appear in the report.
+Warnings never change the verdict. They always appear in the report.
 
 ## Validation
 
 <p align="center"><img src="docs/assets/validation.svg" alt="Simulation grid across prevalence 5 to 30 percent and 500 to 20,000 rows: type I error between 0.047 and 0.054, power rising with size, bootstrap coverage between 0.933 and 0.950" width="760"></p>
 
-Across a simulation grid of prevalence 5 to 30 percent and 500 to 20,000 rows, the non-inferiority test keeps its type I error between 4 and 6 percent, and the bootstrap intervals cover between 93 and 97 percent. DeLong results match R pROC to 1e-8 on AUC and 1e-6 on standard error and z. See [validation results](docs/validation.md) and [methods](docs/methods.md).
+The simulation grid spans prevalence 5 to 30 percent and test sets of 500 to 20,000 rows, with 20,000 replicates per cell for type I error and 10,000 for coverage. At a nominal one-sided 5 percent, the non-inferiority test rejects a true boundary null 4.7 to 5.4 percent of the time. Nominal 95 percent bootstrap intervals cover 93.3 to 95.0 percent. DeLong results match R pROC to 1e-8 on AUC and 1e-6 on standard error and z. See [validation results](docs/validation.md) and [methods](docs/methods.md).
 
 ## Security
 

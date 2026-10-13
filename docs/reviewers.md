@@ -14,7 +14,7 @@ SPDX-License-Identifier: Apache-2.0
 3. **Checks table.** One row per check, with the result and what a failure does to the verdict.
 4. **Figures.**
     - The update timeline shows AUROC per version against the anchor and the drift budget.
-    - The forest plot shows each subgroup's change with its adjusted interval.
+    - The forest plot shows each subgroup's change with its interval at the level it was tested.
     - The calibration and decision curves compare candidate and previous version.
     - The gauges show how much of each plan budget is used.
 5. **Check details.** Every number behind every check.
@@ -35,10 +35,11 @@ medagentrx fingerprint candidate.parquet
 
 ```bash
 medagentrx ledger verify ledger.jsonl --head trusted-copy/ledger.jsonl.head
+medagentrx ledger verify ledger.jsonl --public-key ledger-signing.pub
 medagentrx ledger show ledger.jsonl
 ```
 
-`verify` recomputes every hash and checks the chain against the head file. Edited, reordered or removed entries are reported. The [ledger page](ledger.md) explains the format.
+`verify` recomputes every hash and checks the chain against the head file. Edited, reordered or removed entries are reported, as are entries out of time order. When the plan pins a signing key, `--public-key` also checks the head's signature, and the key's fingerprint must match `ledger_signing_key_sha256` in the plan. The [ledger page](ledger.md) explains the format.
 
 ## Read the plan itself
 
