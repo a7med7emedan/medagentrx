@@ -11,6 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 | `medagentrx schema` | Print the JSON Schema of the plan. |
 | `medagentrx validate PLAN...` | Check one or more plans against the schema and their own logic. |
 | `medagentrx fingerprint TEST_PREDS` | Print the canonical fingerprint of the locked test set. |
+| `medagentrx sample-size [PLAN] --auroc A --prevalence P` | Rows the locked test set needs for the plan's power. |
 | `medagentrx check PLAN --candidate ... --ledger ... --out DIR` | Check one update, record it in the ledger and write the reports. |
 | `medagentrx render-plan PLAN --out DIR` | Write the PCCP document in Markdown and HTML. |
 | `medagentrx card PLAN --report DIR/report.json --out MODEL_CARD.md` | Add an accepted version's performance to the model card. |

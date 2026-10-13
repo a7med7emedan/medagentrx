@@ -17,6 +17,7 @@ First release candidate.
 - Ed25519 signatures on the ledger head. `ledger keygen` makes a key pair, the plan can pin the key with `ledger_signing_key_sha256`, `check --signing-key` and the guard sign each head, and `ledger verify --public-key` checks the signature.
 - Subgroups are tested as an intersection-union test (`multiplicity: none`), since the update passes only if every subgroup is non-inferior. Holm and Bonferroni remain as stricter options.
 - The guard answers one noisy bit for all statistical criteria together, instead of adding noise to the AUROC test alone and answering the rest exactly. With the agent's own validation predictions it runs Thresholdout. Guard ledger entries record what the agent was told.
+- `medagentrx sample-size` sizes the locked test set for the plan's margin, level and power before it is locked.
 
 ### Added
 
