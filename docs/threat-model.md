@@ -5,12 +5,12 @@ SPDX-License-Identifier: Apache-2.0
 
 # Threat model
 
-MedAgentRx reads files that people and agents control, and its verdict can release a clinical model. This page lists what it defends against, using STRIDE: spoofing, tampering, repudiation, information disclosure, denial of service and elevation of privilege.
+MedAgentRx reads files that people and agents control, and its verdict decides whether a clinical model update may be released. This page lists what it defends against, using STRIDE: spoofing, tampering, repudiation, information disclosure, denial of service and elevation of privilege.
 
 ## Assets
 
 - The **verdict** and the decision it supports.
-- The **decision ledger**, which holds the plan's budgets: test-set looks, alpha and releases.
+- The **decision ledger**, which holds the plan's budgets: test-set looks, alpha and accepted updates.
 - The **locked test set**, whose value depends on limited use.
 - The **reader** of reports and the dashboard.
 

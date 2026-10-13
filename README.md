@@ -12,23 +12,17 @@ Every model update, by an engineer, a pipeline or an AI agent, is checked agains
 
 <p align="center">
   <a href="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://pypi.org/project/medagentrx/"><img alt="PyPI" src="https://img.shields.io/pypi/v/medagentrx"></a>
-  <a href="https://github.com/a7med7emedan/medagentrx/pkgs/container/medagentrx"><img alt="Container image" src="https://img.shields.io/badge/container-ghcr.io-0F766E"></a>
+  <a href="https://a7med7emedan.github.io/medagentrx/"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-0F766E"></a>
+  <a href="pyproject.toml"><img alt="Python 3.11 to 3.13" src="https://img.shields.io/badge/python-3.11%20to%203.13-0F766E"></a>
   <a href="LICENSE"><img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-0F766E"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/a7med7emedan/medagentrx"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/a7med7emedan/medagentrx/badge"></a>
 </p>
 
 Clinical risk models are increasingly retrained by scheduled pipelines and by AI agents. Regulators allow this only for changes agreed in advance, in a Predetermined Change Control Plan in the US or under Article 43(4) of the EU AI Act. MedAgentRx turns that plan into a test that runs on every update.
 
-The plan is a single YAML file. Each candidate update is evaluated against it and receives one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation is appended to a hash-chained ledger, failures included, and the plan's limits are read back from it. Repeated attempts use up the plan's budget of test-set looks, so nobody can keep submitting candidates until one passes by chance.
+The plan is a single YAML file. Each candidate update is evaluated against it and receives one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including every failure, is appended to a hash-chained ledger, and the plan's limits are read back from it. Each attempt uses up part of the plan's budget of looks at the locked test set. A model therefore cannot be selected simply because it passed once among many tries.
 
-The statistics are the ones a reviewer will ask about:
-
-- paired DeLong tests, matching R pROC to 1e-8;
-- calibration slope and intercept, and net benefit at clinical thresholds;
-- subgroup non-inferiority;
-- alpha spending across the life of the plan;
-- a cumulative check against the authorised version, which stops slow drift.
+Each verdict rests on established methods. AUROC is compared with paired DeLong tests, cross-checked against R pROC. Calibration is judged by slope and intercept, and clinical value by net benefit at the plan's decision thresholds. Every subgroup must be non-inferior on its own. Alpha is spent across the life of the plan, and each update is also compared with the originally authorised version, which catches slow drift. [Methods](docs/methods.md) gives the formulas and references.
 
 <p align="center"><img src="docs/assets/demo.gif" alt="Terminal: medagentrx validates the example plan, then runs four planted scenarios on synthetic data; each gives its expected verdict" width="760"></p>
 
@@ -51,10 +45,11 @@ The [checks catalogue](docs/checks.md) lists all 19 checks with their regulatory
 ## Quick start
 
 ```bash
-uvx medagentrx demo
+uv tool install git+https://github.com/a7med7emedan/medagentrx
+medagentrx demo
 ```
 
-This runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
+MedAgentRx is installed from GitHub until the first release reaches PyPI. The demo runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
 
 ```bash
 medagentrx init                                   # write a commented change-plan.yaml
@@ -100,17 +95,17 @@ from medagentrx.guard import Guard
 
 guard = Guard("change-plan.yaml", "ledger.jsonl", mode="thresholdout", previous="previous.parquet")
 decision = guard.submit("candidate.parquet", "model.yaml", manifest="train_manifest.parquet")
-decision.allowed, decision.looks_remaining
+print(decision.allowed, decision.reason, decision.looks_remaining)
 ```
 
-An agent may try only the modifications the plan marks automatic. Each try spends one look at the locked test set and returns one noisy bit for all the plan's criteria together. Given the agent's own validation predictions, the guard runs Thresholdout (Dwork et al. 2015) and answers from them whenever they agree with the test set. See [For agents and AutoML](docs/agents.md).
+An agent may try only the modifications the plan marks as automatic. Each try spends one look at the locked test set. In the default thresholdout mode the agent learns only whether the candidate passes, with random noise added so that repeated tries reveal little about the test set. If the agent also supplies predictions on its own validation data, the guard follows Thresholdout (Dwork et al. 2015) and answers from those whenever they agree with the test set. See [For agents and AutoML](docs/agents.md).
 
 ## Continuous integration
 
 GitHub Actions:
 
 ```yaml
-- uses: a7med7emedan/medagentrx@v0.1.0
+- uses: a7med7emedan/medagentrx@main  # pin to a commit SHA or, after the first release, a tag
   with:
     plan: change-plan.yaml
     candidate: predictions/candidate.parquet
@@ -125,7 +120,7 @@ GitLab CI/CD:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.0
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@main
     inputs:
       image: <registry>/medagentrx@sha256:<digest>
       plan: change-plan.yaml

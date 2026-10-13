@@ -586,9 +586,7 @@ def serve(
 
         from medagentrx.web.app import bind_warning, create_app
     except ImportError:
-        typer.echo(
-            "error: the dashboard needs the web extra: pip install 'medagentrx[web]'", err=True
-        )
+        typer.echo("error: the dashboard needs the web extra, medagentrx[web]", err=True)
         raise typer.Exit(ExitCode.USAGE_ERROR) from None
     try:
         application = create_app(ledger=ledger, reports=reports, plan=plan)

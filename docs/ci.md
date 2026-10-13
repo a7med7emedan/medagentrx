@@ -10,7 +10,7 @@ Keep `ledger.jsonl` and `ledger.jsonl.head` between runs, for example committed 
 ## GitHub Actions
 
 ```yaml
-- uses: a7med7emedan/medagentrx@v0.1.0
+- uses: a7med7emedan/medagentrx@main  # pin to a commit SHA or, after the first release, a tag
   with:
     plan: change-plan.yaml
     candidate: predictions/candidate.parquet
@@ -28,7 +28,7 @@ The action runs the check in a read-only container without network, writes the s
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.0
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@main
     inputs:
       image: <registry>/medagentrx@sha256:<digest>
       plan: change-plan.yaml
@@ -50,7 +50,7 @@ When the plan pins a key with `ledger_signing_key_sha256`, the run needs the pri
 
 ```yaml
 - repo: https://github.com/a7med7emedan/medagentrx
-  rev: v0.1.0
+  rev: main  # pin to a commit SHA or, after the first release, a tag
   hooks:
     - id: medagentrx-validate
 ```

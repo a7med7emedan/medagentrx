@@ -26,7 +26,7 @@ decision.looks_remaining  # looks left under the plan
 
 - **What the agent may try.** `allowed_modifications()` lists the plan's modifications with `automatic: true`. Any other modification is refused before any data is read, and it spends no look.
 - **Every look counts.** Each submission that reaches the data spends one look from `max_evaluations` and is written to the ledger, whether it passes or not. When the budget is used up, the guard refuses with DATA-004 and the update is outside the plan.
-- **No alpha, no release.** Guard looks spend no alpha and never count as released updates. A candidate the agent prefers still needs a formal `medagentrx check`, which records the release decision.
+- **No alpha, no release.** Guard looks spend no alpha and never count as released updates. A candidate the agent prefers still needs a formal `medagentrx check` before it can be accepted.
 
 ## Thresholdout mode
 

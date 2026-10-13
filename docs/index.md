@@ -11,7 +11,7 @@ Clinical risk models are increasingly retrained by scheduled pipelines and by AI
 
 ## Background: change control plans
 
-A cleared or certified medical AI model normally cannot be retrained without a new regulatory review. Regulators now accept a way around that: describe in advance which changes you will make and how you will validate them.
+A cleared or certified medical AI model normally cannot be retrained without a new regulatory review. Regulators now offer an alternative: the manufacturer describes in advance which changes it will make and how it will validate them.
 
 - In the United States this is the **Predetermined Change Control Plan (PCCP)**. FDA final guidance for AI-enabled device software functions was issued on 4 December 2024. It has three parts: Description of Modifications, Modification Protocol and Impact Assessment.
 - In the European Union, **AI Act Article 43(4)** says changes that were pre-determined at the initial conformity assessment, and recorded in the technical documentation, are not a substantial modification. MDCG 2025-6 confirms this, while a significant change under the MDR is still assessed separately.

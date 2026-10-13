@@ -8,8 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 ## The synthetic demo
 
 ```bash
-uvx medagentrx demo
+uv tool install git+https://github.com/a7med7emedan/medagentrx
+medagentrx demo
 ```
+
+Until the first release reaches PyPI, MedAgentRx is installed from GitHub. Add the dashboard with `uv tool install "medagentrx[web] @ git+https://github.com/a7med7emedan/medagentrx"`.
 
 The demo builds a synthetic sepsis cohort with 20,000 test rows, and no real patient data, then runs ten scenarios. Each scenario plants one property and must give exactly its expected verdict:
 
