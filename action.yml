@@ -32,6 +32,14 @@ inputs:
   ledger:
     description: Decision ledger. It must persist between runs, for example committed to the repository.
     required: true
+  signing-key:
+    description: >-
+      Ed25519 private key in PEM form for signing the ledger head, passed from a secret. Required
+      when the plan sets ledger_signing_key_sha256.
+    default: ""
+  signing-key-passphrase:
+    description: Passphrase of an encrypted signing key, passed from a secret.
+    default: ""
   out:
     description: Directory for the reports, relative to the workspace.
     default: medagentrx-report
@@ -91,18 +99,31 @@ runs:
         SEED: ${{ inputs.seed }}
         REPLICATES: ${{ inputs.replicates }}
         FORMAT: ${{ inputs.format }}
+        SIGNING_KEY: ${{ inputs.signing-key }}
+        MEDAGENTRX_SIGNING_KEY_PASSPHRASE: ${{ inputs.signing-key-passphrase }}
       run: |
         image="${MEDAGENTRX_IMAGE:-medagentrx-action:local}"
+        signing=()
+        if [ -n "$SIGNING_KEY" ]; then
+          keydir="$(mktemp -d "$RUNNER_TEMP/medagentrx-key.XXXXXX")"
+          chmod 700 "$keydir"
+          (umask 077 && printf '%s\n' "$SIGNING_KEY" > "$keydir/signing.key")
+          signing=(--volume "$keydir:/run/medagentrx:ro"
+            --env MEDAGENTRX_SIGNING_KEY=/run/medagentrx/signing.key
+            --env MEDAGENTRX_SIGNING_KEY_PASSPHRASE)
+        fi
         set +e
         docker run --rm --read-only --tmpfs /tmp --network none \
           --user "$(id -u):$(id -g)" \
           --volume "$GITHUB_WORKSPACE:/work" --workdir /work \
+          "${signing[@]}" \
           "$image" check "$PLAN" \
           --candidate "$CANDIDATE" --previous "$PREVIOUS" --anchor "$ANCHOR" \
           --manifest "$MANIFEST" --model-meta "$MODEL_META" --ledger "$LEDGER" \
           --out "$OUT" --seed "$SEED" --replicates "$REPLICATES" --format "$FORMAT"
         code=$?
         set -e
+        if [ -n "${keydir:-}" ]; then rm -rf "$keydir"; fi
         case "$code" in
           0) verdict=ACCEPTED ;;
           1) verdict=FAILED ;;

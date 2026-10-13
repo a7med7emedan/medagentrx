@@ -817,6 +817,21 @@
       "title": "Anchor Version",
       "type": "string"
     },
+    "ledger_signing_key_sha256": {
+      "anyOf": [
+        {
+          "description": "SHA-256 digest as 64 lowercase hex characters.",
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Fingerprint of the Ed25519 public key that must sign every ledger head. When given, checks refuse unsigned or differently signed ledgers.",
+      "title": "Ledger Signing Key Sha256"
+    },
     "anchor_predictions_sha256": {
       "anyOf": [
         {

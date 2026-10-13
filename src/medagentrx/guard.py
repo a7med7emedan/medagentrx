@@ -36,7 +36,7 @@ import numpy as np
 
 from medagentrx.engine import Evaluation, Verdict, evaluate, refused
 from medagentrx.io.metadata import load_model_meta
-from medagentrx.ledger import append, exclusive, load_history
+from medagentrx.ledger import append, exclusive, load_history, signing_policy
 from medagentrx.plan import load_plan
 from medagentrx.plan.models import Modification
 
@@ -82,6 +82,8 @@ class Guard:
         seed: Seed of the noise. Defaults to a fresh random seed, which the agent
             should not know.
         n_replicates: Bootstrap replicates for each look.
+        signing_key: Ledger signing key, required when the plan names one. Run the
+            guard in a process the agent cannot read when using it.
     """
 
     def __init__(
@@ -95,6 +97,7 @@ class Guard:
         noise_scale: float = DEFAULT_NOISE_SCALE,
         seed: int | None = None,
         n_replicates: int = 2000,
+        signing_key: str | Path | None = None,
     ) -> None:
         if mode not in ("thresholdout", "exact"):
             raise ValueError(f"mode must be 'thresholdout' or 'exact', got {mode!r}")
@@ -109,6 +112,7 @@ class Guard:
         self.n_replicates = n_replicates
         self._rng = np.random.default_rng(secrets.randbits(64) if seed is None else seed)
         self.plan = load_plan(self.plan_path)
+        self._key = signing_policy(self.plan, Path(signing_key) if signing_key else None)
 
     def allowed_modifications(self) -> list[Modification]:
         """Modifications the plan lets a pipeline or agent trigger without a person."""
@@ -128,7 +132,8 @@ class Guard:
         allowed_ids = [m.id for m in self.allowed_modifications()]
         self.ledger.parent.mkdir(parents=True, exist_ok=True)
         with exclusive(self.ledger):
-            history = load_history(self.ledger)
+            public_key = self._key.public_key() if self._key is not None else None
+            history = load_history(self.ledger, public_key=public_key)
             if meta.modification_id not in allowed_ids:
                 listed = ", ".join(allowed_ids) or "none"
                 evaluation = refused(
@@ -154,7 +159,9 @@ class Guard:
                     n_replicates=self.n_replicates,
                     now=now,
                 )
-            append(self.ledger, evaluation, already_locked=True, kind="guard")
+            append(
+                self.ledger, evaluation, already_locked=True, kind="guard", signing_key=self._key
+            )
         return self._answer(evaluation, history.looks_used)
 
     def _answer(self, evaluation: Evaluation, looks_before: int) -> Decision:

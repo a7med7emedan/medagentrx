@@ -16,6 +16,7 @@ SPDX-License-Identifier: Apache-2.0
 | `medagentrx card PLAN --report DIR/report.json --out MODEL_CARD.md` | Add an accepted version's performance to the model card. |
 | `medagentrx ledger verify LEDGER` | Recompute the hash chain and compare it with the head. |
 | `medagentrx ledger show LEDGER` | List every evaluation and the budgets used. |
+| `medagentrx ledger keygen --out DIR` | Write an Ed25519 key pair for signing ledger heads and print its fingerprint. |
 | `medagentrx demo [--out DIR]` | Run the planted scenarios on synthetic data. |
 | `medagentrx serve --ledger LEDGER` | Serve the read-only dashboard on 127.0.0.1 (extra `[web]`). |
 | `medagentrx version` | Print the version. |

@@ -343,7 +343,7 @@ def build_bio_creep(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
         noisy_logit(cohort, sigma_for_auc(cohort, anchor_auc - BIO_CREEP_DROP * k))
         for k in range(1, BIO_CREEP_STEPS + 1)
     ]
-    steps = []
+    steps: list[dict[str, Any]] = []
     for k in range(1, BIO_CREEP_STEPS + 1):
         directory = root / f"update-{k}"
         case = _case(
@@ -395,7 +395,7 @@ def build_peeking_agent(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     Each candidate is a slightly different, sound model.
     """
     prev = previous_logit(cohort)
-    steps = []
+    steps: list[dict[str, Any]] = []
     for k in range(1, PEEKING_SUBMISSIONS + 1):
         directory = root / f"try-{k:02d}"
         gain = 0.010 + 0.0005 * (k % 10)

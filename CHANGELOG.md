@@ -14,6 +14,7 @@ First release candidate.
 ### Added after review
 
 - DATA-006 binds each prediction file to its model: the candidate to `predictions_sha256` in its metadata, the previous version to its recorded release, and optionally the anchor to `anchor_predictions_sha256` in the plan.
+- Ed25519 signatures on the ledger head. `ledger keygen` makes a key pair, the plan can pin the key with `ledger_signing_key_sha256`, `check --signing-key` and the guard sign each head, and `ledger verify --public-key` checks the signature.
 
 ### Added
 

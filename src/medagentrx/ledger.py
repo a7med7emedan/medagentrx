@@ -31,9 +31,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+
 from medagentrx.engine import Evaluation, alpha_after, json_safe
 from medagentrx.errors import InputError, MedAgentRxError
 from medagentrx.history import History, Release
+from medagentrx.plan.models import ChangePlan
+from medagentrx.signing import key_fingerprint, load_private_key, sign_head, verify_head
 from medagentrx.stats.alpha import AlphaState
 
 LEDGER_FORMAT = 1
@@ -116,8 +120,16 @@ class Verification:
     problems: tuple[str, ...]
 
 
-def verify(path: Path, *, head_path: Path | None = None) -> Verification:
-    """Recompute the hash chain and compare it with the recorded head."""
+def verify(
+    path: Path,
+    *,
+    head_path: Path | None = None,
+    public_key: Ed25519PublicKey | None = None,
+) -> Verification:
+    """Recompute the hash chain and compare it with the recorded head.
+
+    With ``public_key``, the head must also carry a valid signature by that key.
+    """
     head_file = head_path or head_path_for(path)
     try:
         entries = read_entries(path)
@@ -138,11 +150,13 @@ def verify(path: Path, *, head_path: Path | None = None) -> Verification:
             problems.append(f"{where}: content does not match its hash")
         previous = str(entry.get("hash"))
     last = previous if entries else GENESIS
-    problems += _check_head(head_file, len(entries), last)
+    problems += _check_head(head_file, len(entries), last, public_key)
     return Verification(not problems, len(entries), last, tuple(problems))
 
 
-def _check_head(head_file: Path, count: int, last: str) -> list[str]:
+def _check_head(
+    head_file: Path, count: int, last: str, public_key: Ed25519PublicKey | None
+) -> list[str]:
     if not head_file.exists():
         return [] if count == 0 else [f"head file {head_file} is missing"]
     try:
@@ -157,6 +171,10 @@ def _check_head(head_file: Path, count: int, last: str) -> list[str]:
         )
     if head.get("head") != last:
         problems.append("head hash does not match the last entry")
+    if public_key is not None:
+        problem = verify_head(head, public_key)
+        if problem:
+            problems.append(problem)
     return problems
 
 
@@ -196,13 +214,18 @@ def summarize(entries: list[dict[str, Any]]) -> History:
     )
 
 
-def load_history(path: Path, *, head_path: Path | None = None) -> History:
+def load_history(
+    path: Path,
+    *,
+    head_path: Path | None = None,
+    public_key: Ed25519PublicKey | None = None,
+) -> History:
     """Verify the ledger and return its budgets.
 
     Raises:
         LedgerError: If verification fails; budgets from a broken ledger are not used.
     """
-    result = verify(path, head_path=head_path)
+    result = verify(path, head_path=head_path, public_key=public_key)
     if not result.ok:
         raise LedgerError(f"{path}: the ledger fails verification", result.problems)
     return summarize(read_entries(path))
@@ -306,6 +329,7 @@ def append(
     head_path: Path | None = None,
     already_locked: bool = False,
     kind: str = "evaluation",
+    signing_key: Ed25519PrivateKey | None = None,
 ) -> dict[str, Any]:
     """Verify the ledger, then append ``evaluation`` and update the head.
 
@@ -315,6 +339,8 @@ def append(
         head_path: Head file. Defaults to ``head_path_for(path)``.
         already_locked: True when the caller holds ``exclusive(path)``.
         kind: ``evaluation`` or ``guard``; see ``ENTRY_KINDS``.
+        signing_key: Key that signs the new head. The existing head must then
+            carry a valid signature by the same key.
 
     Raises:
         LedgerError: If the ledger fails verification, or changed after the
@@ -323,13 +349,20 @@ def append(
     path.parent.mkdir(parents=True, exist_ok=True)
     lock = contextlib.nullcontext() if already_locked else exclusive(path)
     with lock:
-        return _append_unlocked(path, evaluation, head_path or head_path_for(path), kind)
+        return _append_unlocked(
+            path, evaluation, head_path or head_path_for(path), kind, signing_key
+        )
 
 
 def _append_unlocked(
-    path: Path, evaluation: Evaluation, head_file: Path, kind: str
+    path: Path,
+    evaluation: Evaluation,
+    head_file: Path,
+    kind: str,
+    signing_key: Ed25519PrivateKey | None,
 ) -> dict[str, Any]:
-    result = verify(path, head_path=head_file)
+    public_key = signing_key.public_key() if signing_key is not None else None
+    result = verify(path, head_path=head_file, public_key=public_key)
     if not result.ok:
         raise LedgerError(
             f"{path}: refusing to append to a ledger that fails verification", result.problems
@@ -347,11 +380,36 @@ def _append_unlocked(
         handle.write(canonical(entry) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
-    _write_head(head_file, result.entries + 1, entry["hash"])
+    _write_head(head_file, result.entries + 1, entry["hash"], signing_key)
     return entry
 
 
-def _write_head(head_file: Path, count: int, last: str) -> None:
+def _write_head(
+    head_file: Path, count: int, last: str, signing_key: Ed25519PrivateKey | None
+) -> None:
+    head: dict[str, Any] = {"entries": count, "head": last}
+    if signing_key is not None:
+        head["signature"] = sign_head(count, last, signing_key)
     temporary = head_file.with_name(head_file.name + ".tmp")
-    temporary.write_text(json.dumps({"entries": count, "head": last}) + "\n", encoding="utf-8")
+    temporary.write_text(json.dumps(head) + "\n", encoding="utf-8")
     temporary.replace(head_file)
+
+
+def signing_policy(plan: ChangePlan | None, key_path: Path | None) -> Ed25519PrivateKey | None:
+    """The key that must sign ledger heads for ``plan``, or None when heads are unsigned.
+
+    Raises:
+        InputError: If the plan pins a key and none, or a different one, is given.
+    """
+    required = plan.ledger_signing_key_sha256 if plan is not None else None
+    if key_path is None:
+        if required:
+            raise InputError(
+                "this plan requires signed ledger heads; pass the signing key "
+                "(--signing-key or MEDAGENTRX_SIGNING_KEY)"
+            )
+        return None
+    key = load_private_key(key_path)
+    if required and key_fingerprint(key.public_key()) != required:
+        raise InputError("the signing key is not the key the plan names")
+    return key

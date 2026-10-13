@@ -395,6 +395,13 @@ class ChangePlan(StrictModel):
     anchor_version: Annotated[str, Field(min_length=1, max_length=64)] = Field(
         description="The originally authorised model version. It never changes."
     )
+    ledger_signing_key_sha256: Sha256 | None = Field(
+        default=None,
+        description=(
+            "Fingerprint of the Ed25519 public key that must sign every ledger head. "
+            "When given, checks refuse unsigned or differently signed ledgers."
+        ),
+    )
     anchor_predictions_sha256: Sha256 | None = Field(
         default=None,
         description=(
