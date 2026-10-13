@@ -135,6 +135,103 @@ def fingerprint(
     typer.echo(digest)
 
 
+@app.command("sample-size")
+def sample_size(
+    plan: Annotated[
+        Path | None,
+        typer.Argument(
+            help="Change plan to read the margin, level and power from.", metavar="PLAN"
+        ),
+    ] = None,
+    auroc: Annotated[
+        float, typer.Option("--auroc", help="Expected AUROC of the deployed version.")
+    ] = 0.80,
+    prevalence: Annotated[
+        float, typer.Option("--prevalence", help="Share of positives in the test population.")
+    ] = 0.10,
+    margin: Annotated[
+        float | None, typer.Option("--margin", help="Non-inferiority margin; overrides the plan.")
+    ] = None,
+    alpha: Annotated[
+        float | None,
+        typer.Option("--alpha", help="One-sided level per update; overrides the plan."),
+    ] = None,
+    power: Annotated[
+        float | None, typer.Option("--power", help="Target power; overrides the plan.")
+    ] = None,
+    correlation: Annotated[
+        float,
+        typer.Option(
+            "--correlation",
+            help="Correlation of the two AUROC estimates; 0.5 to 0.8 is typical for retraining.",
+        ),
+    ] = 0.6,
+    true_difference: Annotated[
+        float,
+        typer.Option("--true-difference", help="AUROC change the candidate is expected to have."),
+    ] = 0.0,
+) -> None:
+    """Size the locked test set so the AUROC criterion has the power the plan asks for."""
+    from medagentrx.plan import load_plan
+    from medagentrx.plan.models import NonInferiorityCriterion
+    from medagentrx.stats.alpha import initial_state, next_alpha
+    from medagentrx.stats.power import required_test_size
+
+    min_events = None
+    try:
+        if plan is not None:
+            loaded = load_plan(plan)
+            perf = loaded.performance
+            margins = [
+                c.margin
+                for c in perf.criteria
+                if isinstance(c, NonInferiorityCriterion) and c.metric == "auroc"
+            ]
+            if margin is None and margins:
+                margin = min(margins)
+            if alpha is None:
+                alpha = next_alpha(
+                    initial_state(perf.alpha_spending, perf.alpha_total, loaded.max_updates)
+                )
+            if power is None and perf.power is not None:
+                power = perf.power.min_power
+            min_events = perf.subgroups.min_events if perf.subgroups else None
+        if margin is None or alpha is None:
+            typer.echo(
+                "error: give a plan with an AUROC criterion, or --margin and --alpha", err=True
+            )
+            raise typer.Exit(ExitCode.USAGE_ERROR)
+        power = 0.80 if power is None else power
+        size = required_test_size(
+            auc=auroc,
+            prevalence=prevalence,
+            margin=margin,
+            alpha=alpha,
+            power=power,
+            correlation=correlation,
+            true_difference=true_difference,
+        )
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    typer.echo(
+        f"Locked test set: at least {size.n:,} rows "
+        f"({size.n_pos:,} positives, {size.n_neg:,} negatives)"
+    )
+    typer.echo(
+        f"Power {size.power:.3f} to show non-inferiority at margin {margin:g}, "
+        f"one-sided level {alpha:.4g}"
+    )
+    typer.echo(
+        f"Assumes AUROC {auroc:g}, prevalence {prevalence:g}, correlation {correlation:g} "
+        f"and a true difference of {true_difference:+g} (Hanley and McNeil variance)"
+    )
+    if min_events is not None:
+        typer.echo(
+            f"Every subgroup level also needs at least {min_events} positives and "
+            f"{min_events} negatives"
+        )
+
+
 @app.command()
 def check(
     plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],

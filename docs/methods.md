@@ -102,6 +102,8 @@ Q2 = 2 A^2 / (1 + A)
 
 For two models with the same expected AUROC and correlation `r` between the estimates, the paired difference has variance `2 V (1 - r)`. Power at true difference `d` is `Phi((d + margin) / SE - z(1 - alpha))`. A small simulation with binormal scores confirms the approximation.
 
+`medagentrx sample-size` inverts this formula. It finds, by bisection, the smallest test set whose power reaches the target, with positives set by the expected prevalence. Given a plan, it takes the smallest AUROC margin, the level of the first update under the plan's alpha spending and the plan's minimum power. For example, AUROC 0.80, prevalence 0.12, margin 0.02, level 0.05 / 12 and correlation 0.6 need 15,088 rows for 80 percent power. The correlation of the two AUROC estimates matters most. Retraining the same architecture on more data usually gives 0.5 to 0.8, and higher correlation needs fewer rows. Estimate it from an earlier pair of versions when you can.
+
 ## Population shift
 
 - **Numeric features:** standardised mean difference `(mean_1 - mean_2) / sqrt((s_1^2 + s_2^2) / 2)`.

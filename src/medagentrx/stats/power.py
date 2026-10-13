@@ -9,12 +9,15 @@ models with the same expected AUROC A and correlation r between the two
 estimates has variance 2 V (1 - r). Power at a true difference d is
 Phi((d + margin) / SE - z(1 - alpha)).
 
-``simulated_power`` confirms the analytic value with binormal scores.
+``required_test_size`` inverts the analytic power to size a locked test set
+before it is locked. ``simulated_power`` confirms the analytic value with
+binormal scores.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -52,6 +55,77 @@ def analytic_power(
     variance = 2.0 * hanley_mcneil_variance(auc, n_pos, n_neg) * (1.0 - correlation)
     se = math.sqrt(variance)
     return norm_cdf((true_difference + margin) / se - norm_ppf(1.0 - alpha))
+
+
+@dataclass(frozen=True)
+class SampleSize:
+    """Smallest locked test set that reaches the target power.
+
+    Attributes:
+        n: Rows in the test set.
+        n_pos: Positive rows.
+        n_neg: Negative rows.
+        power: Analytic power at that size.
+    """
+
+    n: int
+    n_pos: int
+    n_neg: int
+    power: float
+
+
+def required_test_size(
+    *,
+    auc: float,
+    prevalence: float,
+    margin: float,
+    alpha: float,
+    power: float,
+    correlation: float,
+    true_difference: float = 0.0,
+    max_rows: int = 100_000_000,
+) -> SampleSize:
+    """Smallest test set whose paired AUROC test reaches ``power``.
+
+    Positives are ``prevalence`` times the rows, rounded to the nearest row.
+
+    Raises:
+        StatsError: If an argument is out of range, or the power cannot be
+            reached with ``max_rows`` rows.
+    """
+    check_alpha(alpha)
+    if not 0.0 < prevalence < 1.0:
+        raise StatsError(f"prevalence must be in (0, 1), got {prevalence}")
+    if not alpha < power < 1.0:
+        raise StatsError(f"power must be in (alpha, 1), got {power}")
+    if true_difference + margin <= 0.0:
+        raise StatsError("the true difference must lie above -margin for power to grow with size")
+
+    def size(n: int) -> SampleSize:
+        n_pos = min(max(round(prevalence * n), 1), n - 1)
+        achieved = analytic_power(
+            auc=auc,
+            n_pos=n_pos,
+            n_neg=n - n_pos,
+            margin=margin,
+            alpha=alpha,
+            correlation=correlation,
+            true_difference=true_difference,
+        )
+        return SampleSize(n, n_pos, n - n_pos, achieved)
+
+    low, high = 2, 2
+    while size(high).power < power:
+        if high >= max_rows:
+            raise StatsError(f"power {power} is not reached with {max_rows} rows")
+        low, high = high, min(high * 2, max_rows)
+    while high - low > 1:
+        middle = (low + high) // 2
+        if size(middle).power >= power:
+            high = middle
+        else:
+            low = middle
+    return size(high)
 
 
 def simulated_power(
