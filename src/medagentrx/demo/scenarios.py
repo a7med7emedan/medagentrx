@@ -20,16 +20,17 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
 
 from medagentrx.demo.cohort import (
     Cohort,
-    FloatArray,
+    Recipe,
+    calibrated_probabilities,
     make_cohort,
-    noisy_logit,
-    recalibrated,
+    noisy,
     sigma_for_auc,
 )
 from medagentrx.demo.plan import demo_plan
@@ -107,8 +108,9 @@ class ScenarioResult:
 # Writing files --------------------------------------------------------------------------
 
 
-def _probabilities(y: np.ndarray, logit: FloatArray) -> list[float]:
-    rounded: list[float] = np.round(recalibrated(y, logit), SCORE_DECIMALS).tolist()
+def _probabilities(cohort: Cohort, version: Recipe) -> list[float]:
+    probabilities = calibrated_probabilities(cohort, version)
+    rounded: list[float] = np.round(probabilities, SCORE_DECIMALS).tolist()
     return rounded
 
 
@@ -185,10 +187,10 @@ def _plan(path: Path, cohort: Cohort, edit: Callable[[dict[str, Any]], None] | N
 def _case(
     cohort: Cohort,
     root: Path,
-    candidate_logit: FloatArray,
+    candidate_version: Recipe,
     *,
-    previous_logit: FloatArray,
-    anchor_logit: FloatArray | None = None,
+    previous_version: Recipe,
+    anchor_version: Recipe | None = None,
     candidate_scores: list[float] | None = None,
     labels: list[int] | None = None,
     manifest_edit: Callable[[dict[str, list[object]]], None] | None = None,
@@ -196,27 +198,30 @@ def _case(
     modification: str = "M1",
     architecture: str = "1" * 64,
     version: str = "2.1.0",
-    previous_version: str = "2.0.0",
+    previous_name: str = "2.0.0",
 ) -> dict[str, Any]:
     root.mkdir(parents=True, exist_ok=True)
-    y = cohort.y
-    cand = candidate_scores if candidate_scores is not None else _probabilities(y, candidate_logit)
+    cand = (
+        candidate_scores
+        if candidate_scores is not None
+        else _probabilities(cohort, candidate_version)
+    )
     candidate = _predictions(cohort, root / "candidate.parquet", cand, full=True, labels=labels)
     previous = _predictions(
         cohort,
         root / "previous.parquet",
-        _probabilities(y, previous_logit),
+        _probabilities(cohort, previous_version),
         full=False,
         labels=labels,
     )
-    anchor_scores = _probabilities(y, previous_logit if anchor_logit is None else anchor_logit)
+    anchor_scores = _probabilities(cohort, anchor_version or previous_version)
     anchor = _predictions(cohort, root / "anchor.parquet", anchor_scores, full=False, labels=labels)
     manifest = _manifest(cohort, root / "train_manifest.parquet", manifest_edit)
     plan = _plan(root / "change-plan.yaml", cohort, plan_edit)
     meta = _meta(
         root / "model.yaml",
         version=version,
-        previous=previous_version,
+        previous=previous_name,
         manifest=manifest,
         predictions=candidate,
         modification=modification,
@@ -235,41 +240,44 @@ def _case(
 # Version builders ------------------------------------------------------------------------
 
 
-def previous_logit(cohort: Cohort) -> FloatArray:
+def previous_version(cohort: Cohort) -> Recipe:
     """The authorised version 2.0.0, with AUROC near ``PREVIOUS_AUC``."""
-    return noisy_logit(cohort, sigma_for_auc(cohort, PREVIOUS_AUC))
+    return noisy(sigma_for_auc(cohort, PREVIOUS_AUC))
 
 
-def improved_logit(cohort: Cohort, gain: float = 0.015) -> FloatArray:
+def improved_version(cohort: Cohort, gain: float = 0.015) -> Recipe:
     """A version better than 2.0.0 by ``gain`` AUROC."""
-    return noisy_logit(cohort, sigma_for_auc(cohort, PREVIOUS_AUC + gain))
+    return noisy(sigma_for_auc(cohort, PREVIOUS_AUC + gain))
 
 
 def _single(
     cohort: Cohort,
     root: Path,
-    candidate_logit: FloatArray,
+    candidate: Recipe,
     **kwargs: Any,  # noqa: ANN401
 ) -> list[dict[str, Any]]:
-    case = _case(cohort, root, candidate_logit, previous_logit=previous_logit(cohort), **kwargs)
+    case = _case(cohort, root, candidate, previous_version=previous_version(cohort), **kwargs)
     return [{"inputs": case, "now": START, "directory": root}]
 
 
 def build_good_update(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """Better AUROC, calibrated, no subgroup harm."""
-    return _single(cohort, root, improved_logit(cohort))
+    return _single(cohort, root, improved_version(cohort))
 
 
 def build_subgroup_harm(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """Better at sites A and B; site C loses 0.06 AUROC."""
-    prev = previous_logit(cohort)
-    site = np.array(cohort.test["site"])
-    harmed = site == "C"
+    prev = previous_version(cohort)(cohort)
+
+    def at_site_c(c: Cohort) -> npt.NDArray[np.bool_]:
+        mask: npt.NDArray[np.bool_] = np.array(c.test["site"]) == "C"
+        return mask
+
+    harmed = at_site_c(cohort)
     others = ~harmed
     gain = sigma_for_auc(cohort, auc_fast(cohort.y[others], prev[others]) + 0.04, members=others)
     loss = sigma_for_auc(cohort, auc_fast(cohort.y[harmed], prev[harmed]) - 0.06, members=harmed)
-    candidate = cohort.truth + np.where(harmed, loss, gain) * cohort.noise
-    return _single(cohort, root, candidate)
+    return _single(cohort, root, noisy(gain, harmed=at_site_c, harmed_sigma=loss))
 
 
 def build_miscalibrated(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
@@ -278,8 +286,8 @@ def build_miscalibrated(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     The probabilities are stretched around a risk of 0.2, the middle of the
     plan's clinical thresholds, so decisions there barely change.
     """
-    prev = previous_logit(cohort)
-    calibrated = recalibrated(cohort.y, prev)
+    prev = previous_version(cohort)
+    calibrated = calibrated_probabilities(cohort, prev)
     pivot = float(np.log(0.2 / 0.8))
     stretched = pivot + (np.log(calibrated) - np.log1p(-calibrated) - pivot) / 0.6
     scores = np.round(1.0 / (1.0 + np.exp(-stretched)), SCORE_DECIMALS).tolist()
@@ -293,7 +301,7 @@ def build_leaky_training(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     def leak(train: dict[str, list[object]]) -> None:
         train["patient_id"][:300] = test_patients
 
-    return _single(cohort, root, improved_logit(cohort), manifest_edit=leak)
+    return _single(cohort, root, improved_version(cohort), manifest_edit=leak)
 
 
 def build_test_set_tampered(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
@@ -301,13 +309,13 @@ def build_test_set_tampered(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     labels = cohort.y.tolist()
     for i in range(40):
         labels[i * 97] = 1 - labels[i * 97]
-    return _single(cohort, root, improved_logit(cohort), labels=labels)
+    return _single(cohort, root, improved_version(cohort), labels=labels)
 
 
 def build_new_architecture(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """A new architecture, which the plan does not list as a modification."""
     return _single(
-        cohort, root, improved_logit(cohort), modification="NEW-ARCH", architecture="2" * 64
+        cohort, root, improved_version(cohort), modification="NEW-ARCH", architecture="2" * 64
     )
 
 
@@ -318,7 +326,7 @@ def build_out_of_scope_data(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
         for i in range(150):
             train["age"][i * 199] = 2 + i % 16
 
-    return _single(cohort, root, improved_logit(cohort), manifest_edit=paediatric)
+    return _single(cohort, root, improved_version(cohort), manifest_edit=paediatric)
 
 
 BIO_CREEP_STEPS = 5
@@ -337,10 +345,10 @@ def build_bio_creep(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     Each is non-inferior to its predecessor. The plan's cumulative budget
     against the anchor is 0.04, which the fifth update breaks.
     """
-    anchor = previous_logit(cohort)
-    anchor_auc = auc_fast(cohort.y, anchor)
+    anchor = previous_version(cohort)
+    anchor_auc = auc_fast(cohort.y, anchor(cohort))
     versions = [anchor] + [
-        noisy_logit(cohort, sigma_for_auc(cohort, anchor_auc - BIO_CREEP_DROP * k))
+        noisy(sigma_for_auc(cohort, anchor_auc - BIO_CREEP_DROP * k))
         for k in range(1, BIO_CREEP_STEPS + 1)
     ]
     steps: list[dict[str, Any]] = []
@@ -350,11 +358,11 @@ def build_bio_creep(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
             cohort,
             directory,
             versions[k],
-            previous_logit=versions[k - 1],
-            anchor_logit=anchor,
+            previous_version=versions[k - 1],
+            anchor_version=anchor,
             plan_edit=_bio_creep_plan,
             version=f"2.{k}.0",
-            previous_version=f"2.{k - 1}.0",
+            previous_name=f"2.{k - 1}.0",
         )
         if steps:
             # The previous version's predictions are the file it was released with.
@@ -375,8 +383,8 @@ def build_underpowered(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """
     del cohort
     small = make_cohort(n_test=UNDERPOWERED_ROWS, n_train=6000, seed=7)
-    prev = noisy_logit(small, sigma_for_auc(small, 0.72))
-    case = _case(small, root, small.truth, previous_logit=prev)
+    prev = noisy(sigma_for_auc(small, 0.72))
+    case = _case(small, root, noisy(0.0), previous_version=prev)
     return [{"inputs": case, "now": START, "directory": root}]
 
 
@@ -394,7 +402,7 @@ def build_peeking_agent(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     Retraining M1 is marked automatic in this plan, so the agent may try it.
     Each candidate is a slightly different, sound model.
     """
-    prev = previous_logit(cohort)
+    prev = previous_version(cohort)
     steps: list[dict[str, Any]] = []
     for k in range(1, PEEKING_SUBMISSIONS + 1):
         directory = root / f"try-{k:02d}"
@@ -402,8 +410,8 @@ def build_peeking_agent(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
         case = _case(
             cohort,
             directory,
-            improved_logit(cohort, gain),
-            previous_logit=prev,
+            improved_version(cohort, gain),
+            previous_version=prev,
             plan_edit=_agent_plan,
             version=f"2.1.0-try{k}",
         )
