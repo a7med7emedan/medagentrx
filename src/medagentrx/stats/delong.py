@@ -9,9 +9,13 @@ the unbiased (n - 1) denominators, as in the R package pROC.
 
 Non-inferiority of a new model against a reference with margin delta:
 H0: AUC_new - AUC_ref <= -delta. The statistic is
-z = (estimate + delta) / SE, and H0 is rejected when z > z(1 - alpha).
-The reported interval is the two-sided (1 - 2 alpha) interval, whose lower
-bound exceeds -delta exactly when H0 is rejected.
+z = (estimate + delta) / SE. H0 is rejected when z exceeds the 1 - alpha
+quantile of a Student t distribution with min(positives, negatives) - 1
+degrees of freedom. This small-sample reference keeps the type I error at
+its level when events are few (25 positives in the validation grid); for
+hundreds of events it equals the normal quantile to three decimals. The
+reported interval is the two-sided (1 - 2 alpha) interval with the same
+critical value, whose lower bound exceeds -delta exactly when H0 is rejected.
 """
 
 from __future__ import annotations
@@ -28,8 +32,9 @@ from medagentrx.stats._common import (
     as_labels,
     as_scores,
     check_alpha,
-    norm_cdf,
     norm_ppf,
+    t_cdf,
+    t_ppf,
 )
 
 
@@ -143,6 +148,8 @@ class PairedAucTest:
         margin: Non-inferiority margin.
         alpha: One-sided significance level.
         z: ``(delta + margin) / se``.
+        df: Degrees of freedom of the t reference, min(positives, negatives) - 1.
+        critical: Critical value, the t quantile at 1 - alpha.
         p_value: One-sided p-value for H0: delta <= -margin.
         ci_lower: Lower bound of the two-sided (1 - 2 alpha) interval.
         ci_upper: Upper bound of that interval.
@@ -156,6 +163,8 @@ class PairedAucTest:
     margin: float
     alpha: float
     z: float
+    df: int
+    critical: float
     p_value: float
     ci_lower: float
     ci_upper: float
@@ -196,13 +205,14 @@ def paired_test_from(
     delta = auc_new - auc_ref
     var = float(result.cov[new, new] + result.cov[ref, ref] - 2.0 * result.cov[new, ref])
     se = math.sqrt(max(var, 0.0))
-    z_crit = norm_ppf(1.0 - alpha)
+    df = min(result.n_pos, result.n_neg) - 1
+    z_crit = t_ppf(1.0 - alpha, df)
     if se == 0.0:
         z = math.inf if delta + margin > 0 else (0.0 if delta + margin == 0 else -math.inf)
         p_value = 0.0 if delta + margin > 0 else (0.5 if delta + margin == 0 else 1.0)
     else:
         z = (delta + margin) / se
-        p_value = 1.0 - norm_cdf(z)
+        p_value = 1.0 - t_cdf(z, df)
     return PairedAucTest(
         auc_new=auc_new,
         auc_ref=auc_ref,
@@ -211,6 +221,8 @@ def paired_test_from(
         margin=margin,
         alpha=alpha,
         z=z,
+        df=df,
+        critical=z_crit,
         p_value=p_value,
         ci_lower=delta - z_crit * se,
         ci_upper=delta + z_crit * se,

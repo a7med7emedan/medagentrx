@@ -82,6 +82,9 @@ def test_auc_ci() -> None:
 def test_paired_test_consistency() -> None:
     y, a, b = _data(n=400)
     t = paired_auc_test(y, a, b, margin=0.05, alpha=0.025)
+    n_pos = int(y.sum())
+    assert t.df == min(n_pos, y.size - n_pos) - 1
+    assert t.critical > 1.959964
     assert t.delta == pytest.approx(t.auc_new - t.auc_ref)
     assert t.z == pytest.approx((t.delta + 0.05) / t.se)
     assert t.non_inferior == (t.ci_lower > -0.05)

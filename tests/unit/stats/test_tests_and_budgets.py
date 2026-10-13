@@ -206,3 +206,34 @@ def test_categorical_smd_binary_matches_formula() -> None:
     assert categorical_smd(["A", "B", "C"] * 10, ["A"] * 20 + ["B"] * 10) > 0.1
     with pytest.raises(StatsError, match="at least one"):
         categorical_smd([], ["A"])
+
+
+@pytest.mark.parametrize(
+    ("p", "df", "expected"),
+    [
+        (0.95, 24, 1.7108820799),
+        (0.975, 10, 2.2281388520),
+        (0.95, 1, 6.3137515147),
+        (0.99, 5, 3.3649299989),
+        (0.6, 3, 0.2766706623),
+        (0.05, 24, -1.7108820799),
+    ],
+)
+def test_t_quantiles_match_published_values(p: float, df: int, expected: float) -> None:
+    from medagentrx.stats._common import t_cdf, t_ppf
+
+    assert t_ppf(p, df) == pytest.approx(expected, abs=1e-8)
+    assert t_cdf(expected, df) == pytest.approx(p, abs=1e-10)
+
+
+def test_t_reference_approaches_the_normal() -> None:
+    from medagentrx.stats._common import norm_ppf, regularized_beta, t_cdf, t_ppf
+
+    assert t_ppf(0.95, 100_000) == pytest.approx(norm_ppf(0.95), abs=1e-4)
+    assert t_cdf(float("inf"), 5) == 1.0
+    assert t_cdf(float("-inf"), 5) == 0.0
+    assert t_cdf(0.0, 7) == pytest.approx(0.5)
+    assert regularized_beta(2.0, 3.0, 0.0) == 0.0
+    assert regularized_beta(2.0, 3.0, 1.0) == 1.0
+    with pytest.raises(StatsError, match="p must be"):
+        t_ppf(1.0, 3)

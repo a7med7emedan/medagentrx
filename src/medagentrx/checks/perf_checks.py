@@ -17,7 +17,7 @@ from medagentrx.checks.context import Context
 from medagentrx.checks.registry import Breaks, Family, Finding, Status, check
 from medagentrx.errors import StatsError
 from medagentrx.plan.models import NonInferiorityCriterion, WithinCriterion
-from medagentrx.stats._common import norm_ppf
+from medagentrx.stats._common import t_ppf
 from medagentrx.stats.calibration import CalibrationCurve, binned_curve, calibration
 from medagentrx.stats.delong import PairedAucTest, auc_ci, delong, paired_test_from
 from medagentrx.stats.multiplicity import bonferroni, holm
@@ -324,7 +324,7 @@ def subgroup_drop(ctx: Context) -> Finding:
             continue
         level_used = adjustment.levels[index]
         test = tests[index]
-        half_width = norm_ppf(1.0 - level_used) * test.se
+        half_width = t_ppf(1.0 - level_used, test.df) * test.se
         entry.update(
             {
                 "alpha_used": level_used,

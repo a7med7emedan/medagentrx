@@ -1,0 +1,102 @@
+{
+  "settings": {
+    "alpha": 0.05,
+    "margin": 0.02,
+    "reference_auc": 0.8,
+    "correlation": 0.8,
+    "threshold": 0.2,
+    "bootstrap_replicates": 2000,
+    "type_i_bounds": [
+      0.04,
+      0.06
+    ],
+    "coverage_bounds": [
+      0.93,
+      0.97
+    ]
+  },
+  "cells": [
+    {
+      "prevalence": 0.05,
+      "n": 500,
+      "type_i_error": 0.054000000000000006,
+      "power": 0.16000000000000003,
+      "coverage": 0.9326000000000001,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.05,
+      "n": 2000,
+      "type_i_error": 0.0519,
+      "power": 0.37435,
+      "coverage": 0.9412,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.05,
+      "n": 20000,
+      "type_i_error": 0.05095000000000001,
+      "power": 0.9938500000000001,
+      "coverage": 0.9485999999999999,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.12,
+      "n": 500,
+      "type_i_error": 0.05375,
+      "power": 0.2554,
+      "coverage": 0.9440999999999999,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.12,
+      "n": 2000,
+      "type_i_error": 0.05055,
+      "power": 0.6188,
+      "coverage": 0.9445,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.12,
+      "n": 20000,
+      "type_i_error": 0.0519,
+      "power": 1.0,
+      "coverage": 0.9469999999999998,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.3,
+      "n": 500,
+      "type_i_error": 0.048799999999999996,
+      "power": 0.3883,
+      "coverage": 0.9390000000000001,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.3,
+      "n": 2000,
+      "type_i_error": 0.047299999999999995,
+      "power": 0.86715,
+      "coverage": 0.9501,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    },
+    {
+      "prevalence": 0.3,
+      "n": 20000,
+      "type_i_error": 0.050050000000000004,
+      "power": 1.0,
+      "coverage": 0.9471,
+      "type_i_replicates": 20000,
+      "coverage_replicates": 10000
+    }
+  ],
+  "problems": []
+}

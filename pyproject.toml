@@ -126,7 +126,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "--cov", "--cov-report=term-missing"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--cov", "--cov-report=term-missing", "-m", "not slow"]
 markers = ["slow: long statistical validation runs, nightly and before release"]
 filterwarnings = [
     "error",

@@ -89,7 +89,7 @@ def clean_svg(svg: str) -> str:
     svg = re.sub(r"<svg ", '<svg role="img" focusable="false" ', svg, count=1)
     if "<script" in svg.lower() or "http" in svg.lower():  # pragma: no cover  # defensive
         raise ValueError("figure SVG contains a script or an external reference")
-    return svg.strip()
+    return "\n".join(line.rstrip() for line in svg.strip().splitlines())
 
 
 def _render(figure: Figure) -> str:
