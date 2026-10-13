@@ -7,7 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 
 All notable changes are recorded here. The format follows Keep a Changelog, and the project uses semantic versioning.
 
-## Unreleased
+## 0.1.0rc1, 2026-10-13
+
+First release candidate.
 
 ### Added
 
