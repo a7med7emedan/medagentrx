@@ -14,14 +14,24 @@ lets them try candidates, but only inside the plan:
 - Guard looks spend no alpha and never count as releases. A release still
   needs a formal ``medagentrx check``.
 
-In ``thresholdout`` mode the agent learns one bit per look. Following the
-reusable holdout of Dwork et al. (2015), Laplace noise is added to the
-margin of the primary AUROC test before it is compared with zero, and no
-metric is returned. In ``exact`` mode the verdict and failed checks are
-returned, for supervised use.
+In ``thresholdout`` mode the agent learns one bit per look, about the
+plan's statistical criteria taken together. Every criterion is put on one
+scale (see ``medagentrx.slack``), the smallest slack is taken, and Laplace
+noise is added once before it is compared with zero. No metric is returned.
 
-The ledger keeps the exact outcome for auditors. In thresholdout mode, keep
-the ledger where the agent cannot read it.
+If the agent also passes predictions on its own validation data, the guard
+runs Thresholdout (Dwork et al. 2015). When the validation result agrees with
+the locked test set, within a noisy threshold, the answer comes from the
+validation data and reveals almost nothing about the test set. Otherwise the
+noisy test-set answer is given. Every look still counts against the plan's
+budget, because the plan's budget is a regulatory limit, not a privacy one.
+
+In ``exact`` mode the verdict and failed checks are returned, for supervised
+use.
+
+The ledger keeps the exact outcome and what the agent was told, for
+auditors. In thresholdout mode, keep the ledger where the agent cannot read
+it.
 """
 
 from __future__ import annotations
@@ -34,17 +44,40 @@ from typing import Literal
 
 import numpy as np
 
-from medagentrx.engine import Evaluation, Verdict, evaluate, refused
-from medagentrx.io.metadata import load_model_meta
+from medagentrx.engine import Evaluation, Verdict, evaluate, refused, statistical_findings
+from medagentrx.io.metadata import ModelMeta, load_model_meta
 from medagentrx.ledger import append, exclusive, load_history, signing_policy
 from medagentrx.plan import load_plan
 from medagentrx.plan.models import Modification
+from medagentrx.slack import STATISTICAL_CHECKS, aggregate, aggregate_against, slacks
+from medagentrx.stats.alpha import next_alpha
 
 Mode = Literal["thresholdout", "exact"]
-DEFAULT_NOISE_SCALE = 1.0
-"""Laplace scale on the z margin of the AUROC test, in standard error units."""
+Source = Literal["exact", "holdout", "validation"]
+DEFAULT_NOISE_SCALE = 0.5
+"""Laplace scale on the aggregate slack, in standard error units."""
 
-STATISTICAL_FAMILIES = ("PERF", "LIFE", "DOC")
+DEFAULT_THRESHOLD = 4.0
+"""Thresholdout threshold on the gap between validation and test-set slack.
+
+Four times the noise scale, the ratio of the worked example in Dwork et al.
+(2015), so that noise rarely hides a real disagreement.
+"""
+
+
+@dataclass(frozen=True)
+class Validation:
+    """Predictions on the agent's own validation data, in the prediction file format.
+
+    Attributes:
+        candidate: The candidate's predictions, with the plan's subgroup columns.
+        previous: The deployed version's predictions on the same rows.
+        anchor: The authorised version's predictions. Defaults to ``previous``.
+    """
+
+    candidate: str | Path
+    previous: str | Path
+    anchor: str | Path | None = None
 
 
 @dataclass(frozen=True)
@@ -78,7 +111,9 @@ class Guard:
         mode: ``thresholdout`` (default) or ``exact``.
         previous: Predictions of the deployed version on the locked test set.
         anchor: Predictions of the authorised version. Defaults to ``previous``.
-        noise_scale: Laplace scale for thresholdout answers.
+        noise_scale: Laplace scale for thresholdout answers, in standard error units.
+        threshold: Thresholdout threshold on the validation and test-set gap.
+            Defaults to four times ``noise_scale``.
         seed: Seed of the noise. Defaults to a fresh random seed, which the agent
             should not know.
         n_replicates: Bootstrap replicates for each look.
@@ -95,6 +130,7 @@ class Guard:
         previous: str | Path,
         anchor: str | Path | None = None,
         noise_scale: float = DEFAULT_NOISE_SCALE,
+        threshold: float | None = None,
         seed: int | None = None,
         n_replicates: int = 2000,
         signing_key: str | Path | None = None,
@@ -103,14 +139,20 @@ class Guard:
             raise ValueError(f"mode must be 'thresholdout' or 'exact', got {mode!r}")
         if noise_scale <= 0:
             raise ValueError("noise_scale must be positive")
+        if threshold is None:
+            threshold = DEFAULT_THRESHOLD * noise_scale
+        if threshold < 0:
+            raise ValueError("threshold must not be negative")
         self.plan_path = Path(plan)
         self.ledger = Path(ledger)
         self.mode = mode
         self.previous = Path(previous)
         self.anchor = Path(anchor) if anchor is not None else Path(previous)
         self.noise_scale = noise_scale
+        self.threshold = threshold
         self.n_replicates = n_replicates
         self._rng = np.random.default_rng(secrets.randbits(64) if seed is None else seed)
+        self._gamma = self._laplace(2.0)
         self.plan = load_plan(self.plan_path)
         self._key = signing_policy(self.plan, Path(signing_key) if signing_key else None)
 
@@ -124,9 +166,20 @@ class Guard:
         model_meta: str | Path,
         *,
         manifest: str | Path,
+        validation: Validation | None = None,
         now: dt.datetime | None = None,
     ) -> Decision:
-        """Evaluate one candidate, record the look and answer the agent."""
+        """Evaluate one candidate, record the look and answer the agent.
+
+        Args:
+            candidate: Candidate predictions on the locked test set.
+            model_meta: ``model.yaml`` of the candidate.
+            manifest: Training data manifest of the candidate.
+            validation: Predictions on the agent's own validation data. In
+                thresholdout mode they let the guard answer from them when they
+                agree with the locked test set.
+            now: Evaluation time. Defaults to the current UTC time.
+        """
         now = now or dt.datetime.now(dt.UTC)
         meta = load_model_meta(model_meta)
         allowed_ids = [m.id for m in self.allowed_modifications()]
@@ -159,18 +212,30 @@ class Guard:
                     n_replicates=self.n_replicates,
                     now=now,
                 )
+            decision, source = self._answer(evaluation, history.looks_used, meta, validation)
             append(
-                self.ledger, evaluation, already_locked=True, kind="guard", signing_key=self._key
+                self.ledger,
+                evaluation,
+                already_locked=True,
+                kind="guard",
+                signing_key=self._key,
+                answer={"mode": self.mode, "allowed": decision.allowed, "source": source},
             )
-        return self._answer(evaluation, history.looks_used)
+        return decision
 
-    def _answer(self, evaluation: Evaluation, looks_before: int) -> Decision:
+    def _answer(
+        self,
+        evaluation: Evaluation,
+        looks_before: int,
+        meta: ModelMeta,
+        validation: Validation | None,
+    ) -> tuple[Decision, Source]:
         limit = self.plan.data_management.locked_test_set.max_evaluations
         used = looks_before + (1 if evaluation.touched_test_set else 0)
         remaining = max(limit - used, 0)
         if evaluation.verdict is Verdict.OUTSIDE_PLAN:
             failed = tuple(evaluation.failed_checks)
-            return Decision(
+            decision = Decision(
                 allowed=False,
                 reason="Refused: outside the plan (" + ", ".join(failed) + ")",
                 looks_used=used,
@@ -178,37 +243,54 @@ class Guard:
                 verdict=evaluation.verdict if self.mode == "exact" else None,
                 failed_checks=failed,
             )
+            return decision, "exact"
         if self.mode == "exact":
             ok = evaluation.verdict is Verdict.ACCEPTED
             failed = tuple(evaluation.failed_checks)
             reason = "Meets the plan's criteria" if ok else "Fails: " + ", ".join(failed)
-            return Decision(ok, reason, used, remaining, evaluation.verdict, failed)
-        ok = self._noisy_pass(evaluation)
+            return Decision(ok, reason, used, remaining, evaluation.verdict, failed), "exact"
+        # Failures that do not read the test-set labels, such as the model card, are exact.
+        other = tuple(c for c in evaluation.failed_checks if c not in STATISTICAL_CHECKS)
+        if other:
+            reason = "Fails checks that do not use the test set: " + ", ".join(other)
+            return Decision(False, reason, used, remaining, failed_checks=other), "exact"
+        ok, source = self._thresholdout(evaluation, meta, validation)
         reason = (
             "Passes the plan's criteria (noisy answer)"
             if ok
             else "Does not pass the plan's criteria (noisy answer)"
         )
-        return Decision(ok, reason, used, remaining)
+        return Decision(ok, reason, used, remaining), source
 
-    def _noisy_pass(self, evaluation: Evaluation) -> bool:
-        """Thresholdout-style answer: noise on the AUROC margin, exact on the rest."""
-        others_pass = all(
-            f.status.value != "fail"
-            for f in evaluation.findings
-            if f.check_id.split("-")[0] in STATISTICAL_FAMILIES and f.check_id != "PERF-001"
-        ) and not [f for f in evaluation.failed_checks if f.split("-")[0] in ("PLAN", "DATA")]
-        perf = evaluation.finding("PERF-001")
-        tests = perf.details.get("tests", {})
-        margin = 0.0
-        if tests:
-            margin = min(
-                (t["delta"] + t["margin"]) / t["se"] - t["critical"]
-                if t["se"] > 0
-                else (np.inf if t["non_inferior"] else -np.inf)
-                for t in tests.values()
+    def _laplace(self, multiple: float) -> float:
+        return float(self._rng.laplace(0.0, multiple * self.noise_scale))
+
+    def _thresholdout(
+        self, evaluation: Evaluation, meta: ModelMeta, validation: Validation | None
+    ) -> tuple[bool, Source]:
+        """One noisy bit for all statistical criteria together.
+
+        Without validation data this is the noisy test-set answer. With them,
+        it follows Thresholdout: answer from the validation data unless they
+        differ from the test set by more than a noisy threshold.
+        """
+        holdout = slacks(evaluation.findings)
+        test_slack = aggregate(holdout)
+        if validation is not None and evaluation.alpha_state is not None:
+            found = statistical_findings(
+                plan=self.plan,
+                meta=meta,
+                candidate=validation.candidate,
+                previous=validation.previous,
+                anchor=validation.anchor or validation.previous,
+                alpha=next_alpha(evaluation.alpha_state),
+                check_ids=STATISTICAL_CHECKS,
+                seed=evaluation.seed,
+                n_replicates=self.n_replicates,
             )
-        elif perf.status.value == "fail":  # pragma: no cover  # failures always carry tests
-            margin = -np.inf
-        noisy = margin + float(self._rng.laplace(0.0, self.noise_scale))
-        return bool(others_pass and noisy > 0.0)
+            validation_slack = aggregate_against(slacks(found), holdout)
+            gap = abs(test_slack - validation_slack)
+            if not gap > self.threshold + self._gamma + self._laplace(4.0):
+                return bool(validation_slack > 0.0), "validation"
+            self._gamma = self._laplace(2.0)
+        return bool(test_slack + self._laplace(1.0) > 0.0), "holdout"

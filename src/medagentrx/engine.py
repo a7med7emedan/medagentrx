@@ -25,13 +25,13 @@ import numpy as np
 from medagentrx import __version__
 from medagentrx.checks import REGISTRY, Breaks, Finding, Status, catalogue
 from medagentrx.checks.context import Context, Versions
-from medagentrx.errors import PlanError
+from medagentrx.errors import InputError, PlanError
 from medagentrx.exit_codes import ExitCode
 from medagentrx.history import History
 from medagentrx.io.fingerprint import test_set_fingerprint
 from medagentrx.io.hashing import sha256_file
 from medagentrx.io.limits import Limits
-from medagentrx.io.manifest import PATIENT_ID, load_manifest
+from medagentrx.io.manifest import PATIENT_ID, Manifest, load_manifest
 from medagentrx.io.metadata import ModelMeta, load_model_meta
 from medagentrx.io.paths import resolve_input
 from medagentrx.io.predictions import (
@@ -415,6 +415,66 @@ def evaluate(
         ledger_entries_before=history.entries,
         notes=tuple(ctx.notes),
     )
+
+
+def statistical_findings(
+    *,
+    plan: ChangePlan,
+    meta: ModelMeta,
+    candidate: str | Path,
+    previous: str | Path,
+    anchor: str | Path,
+    alpha: float,
+    check_ids: tuple[str, ...],
+    seed: int = 0,
+    n_replicates: int = DEFAULT_REPLICATES,
+    limits: Limits | None = None,
+    base: Path | None = None,
+) -> list[Finding]:
+    """Run the plan's statistical checks on data other than the locked test set.
+
+    The guard uses this on an agent's own validation data. Only ``check_ids``
+    run, at level ``alpha``; nothing here touches the locked test set or the
+    ledger.
+
+    Raises:
+        InputError: If the files are invalid or do not share rows and labels.
+    """
+    subgroup_columns = list(plan.performance.subgroups.by) if plan.performance.subgroups else []
+    cand = load_predictions(candidate, subgroup_columns=subgroup_columns, limits=limits, base=base)
+    others = {}
+    for name, path in (("previous", previous), ("anchor", anchor)):
+        try:
+            others[name] = align(cand, load_predictions(path, limits=limits, base=base))
+        except RowMismatchError as exc:
+            raise InputError(
+                f"validation predictions of the {name} version do not match the candidate's "
+                f"rows and labels ({exc})"
+            ) from None
+    state = initial_state(
+        plan.performance.alpha_spending, plan.performance.alpha_total, plan.max_updates
+    )
+    ctx = Context(
+        plan=plan,
+        plan_fingerprint=plan_fingerprint(plan),
+        meta=meta,
+        candidate=cand,
+        # Validation data stand in for the locked test set; only label-based checks run.
+        test_fingerprint=plan.data_management.locked_test_set.sha256,
+        versions=Versions(cand, others["previous"], others["anchor"]),
+        mismatches={},
+        manifest=Manifest(source="", row_id=(), patient_id=(), columns={}),
+        manifest_sha256="",
+        prediction_sha256={},
+        test_features={},
+        history=History(),
+        alpha_state=state,
+        alpha=alpha,
+        seed=seed,
+        n_replicates=n_replicates,
+        now=dt.datetime.now(dt.UTC),
+    )
+    return [spec.run(ctx) for spec in catalogue() if spec.check_id in check_ids]
 
 
 def alpha_after(state: AlphaState, evaluation: Evaluation) -> AlphaState:

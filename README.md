@@ -92,7 +92,7 @@ decision = guard.submit("candidate.parquet", "model.yaml", manifest="train_manif
 decision.allowed, decision.looks_remaining
 ```
 
-An agent may try only the modifications the plan marks automatic. Each try spends one look at the locked test set and returns a single noisy bit, after the reusable holdout of Dwork et al. (2015). See [For agents and AutoML](docs/agents.md).
+An agent may try only the modifications the plan marks automatic. Each try spends one look at the locked test set and returns one noisy bit for all the plan's criteria together. Given the agent's own validation predictions, the guard runs Thresholdout (Dwork et al. 2015) and answers from them whenever they agree with the test set. See [For agents and AutoML](docs/agents.md).
 
 ## In CI
 

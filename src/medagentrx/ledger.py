@@ -26,7 +26,7 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -277,11 +277,13 @@ def build_entry(
     prev_hash: str,
     alpha_before: AlphaState | None = None,
     kind: str = "evaluation",
+    answer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ledger entry for ``evaluation``, with its hash.
 
     ``alpha_before`` is the ledger's own alpha state; the evaluation's copy is
-    used only for the first entry.
+    used only for the first entry. ``answer`` records what the guard told the
+    agent, on guard entries only.
     """
     if evaluation.plan_id is None or evaluation.alpha_state is None:
         raise LedgerError("an evaluation with an invalid plan is not written to the ledger")
@@ -318,6 +320,10 @@ def build_entry(
         "seed": evaluation.seed,
         "tool_version": evaluation.tool_version,
     }
+    if answer is not None:
+        if not guard:
+            raise LedgerError("only guard entries record an answer")
+        body["answer"] = dict(answer)
     body["hash"] = entry_hash(body)
     return body
 
@@ -330,6 +336,7 @@ def append(
     already_locked: bool = False,
     kind: str = "evaluation",
     signing_key: Ed25519PrivateKey | None = None,
+    answer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Verify the ledger, then append ``evaluation`` and update the head.
 
@@ -341,6 +348,7 @@ def append(
         kind: ``evaluation`` or ``guard``; see ``ENTRY_KINDS``.
         signing_key: Key that signs the new head. The existing head must then
             carry a valid signature by the same key.
+        answer: What the guard told the agent; guard entries only.
 
     Raises:
         LedgerError: If the ledger fails verification, or changed after the
@@ -350,7 +358,7 @@ def append(
     lock = contextlib.nullcontext() if already_locked else exclusive(path)
     with lock:
         return _append_unlocked(
-            path, evaluation, head_path or head_path_for(path), kind, signing_key
+            path, evaluation, head_path or head_path_for(path), kind, signing_key, answer
         )
 
 
@@ -360,6 +368,7 @@ def _append_unlocked(
     head_file: Path,
     kind: str,
     signing_key: Ed25519PrivateKey | None,
+    answer: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     public_key = signing_key.public_key() if signing_key is not None else None
     result = verify(path, head_path=head_file, public_key=public_key)
@@ -374,7 +383,12 @@ def _append_unlocked(
         )
     history = summarize(read_entries(path))
     entry = build_entry(
-        evaluation, seq=result.entries, prev_hash=result.head, alpha_before=history.alpha, kind=kind
+        evaluation,
+        seq=result.entries,
+        prev_hash=result.head,
+        alpha_before=history.alpha,
+        kind=kind,
+        answer=answer,
     )
     with path.open("a", encoding="utf-8") as handle:
         handle.write(canonical(entry) + "\n")

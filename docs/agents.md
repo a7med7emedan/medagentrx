@@ -30,11 +30,28 @@ decision.looks_remaining  # looks left under the plan
 
 ## Thresholdout mode
 
-Each look tells the agent one bit. Following the reusable holdout of Dwork et al. (2015), Laplace noise (scale 1 standard error by default) is added to the margin of the primary AUROC test before it is compared with zero. No metric is returned.
+Each look tells the agent one bit about the plan's statistical criteria taken together. The guard puts every criterion that reads the test-set labels on one scale: the estimate's distance beyond its boundary, in standard errors, minus the critical value. A criterion passes exactly when this slack is positive. The guard takes the smallest slack across the plan, adds Laplace noise once, and answers whether the result is above zero. No metric is returned.
 
-The other statistical criteria answer exactly, so each adds at most one bit. Use `mode="exact"` for supervised use, where the verdict and failed checks are returned.
+Pass the agent's own validation data to go further:
 
-The ledger keeps the exact outcome of every look for auditors. In thresholdout mode, keep the ledger and the noise seed where the agent cannot read them.
+```python
+from medagentrx.guard import Validation
+
+decision = g.submit(
+    candidate="cand.parquet",
+    model_meta="model.yaml",
+    manifest="train_manifest.parquet",
+    validation=Validation(candidate="val_cand.parquet", previous="val_prev.parquet"),
+)
+```
+
+The guard then runs Thresholdout (Dwork et al. 2015). It computes the same slack on the validation data, using the test set's standard errors so the two are on one scale. If the two agree within a noisy threshold, the answer comes from the validation data and reveals almost nothing about the test set. If they disagree, the noisy test-set answer is given and the threshold noise is drawn again. The noise scale is 0.5 standard errors by default, and the threshold is four times the noise scale, as in the worked example of Dwork et al.
+
+Every look still counts against `max_evaluations`, whichever source answered. The budget is a limit the regulator agreed to, so the guard does not relax it.
+
+Failures that do not depend on test-set labels, such as a model card that cannot be completed, are reported exactly. Use `mode="exact"` for supervised use, where the verdict and failed checks are returned.
+
+The ledger keeps the exact outcome of every look and, under `answer`, what the agent was told and from which source. In thresholdout mode, keep the ledger and the noise seed where the agent cannot read them.
 
 ## Example
 
