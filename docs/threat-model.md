@@ -27,6 +27,7 @@ MedAgentRx reads files that people and agents control, and its verdict can relea
 | Script injection through plan text, labels or data into reports | Tampering, information disclosure | Jinja2 autoescaping; no script in reports; figures drawn as paths with no external reference; CSP that forbids loading anything | `report/` |
 | Edited, reordered or removed ledger entries hide failed attempts | Tampering, repudiation | Hash chain over every entry, a head file and an optional Ed25519 signature on the head, pinned by the plan; `check` refuses a ledger that fails verification | `ledger.py`, `signing.py` |
 | Two evaluations race for the last test-set look | Tampering | A lock spans reading budgets to appending; stale evaluations refused | `ledger.py` |
+| Clock set back to slip past the frequency limit | Tampering | Entries must not run backwards in time; `check` refuses an earlier time and `verify` reports one | `ledger.py` |
 | An agent fits the locked test set by trying many candidates | Information disclosure | Look budget counts every try; thresholdout mode returns one noisy bit; only automatic modifications allowed | `guard.py` |
 | Changed test labels or a different test set | Tampering | Canonical test-set fingerprint pinned in the plan (DATA-001) | `io/fingerprint.py` |
 | Plan changed without a new revision | Tampering, repudiation | Plan fingerprint recorded in the ledger and compared (PLAN-001) | `checks/plan_checks.py` |
@@ -36,6 +37,7 @@ MedAgentRx reads files that people and agents control, and its verdict can relea
 ## Residual risks
 
 - Without a signing key, whoever controls both the ledger and its head file can rewrite history. Pin a signing key in the plan, or keep a copy of the head where the ledger's writers cannot change it.
+- A clock set forward is not detected when it happens. Later entries made with the correct time are then refused, which shows the problem, but the frequency limit was already measured from the wrong time. Run checks on a host with a trusted, synchronised clock.
 - Whoever holds the signing key can sign a rewritten head. Keep the key with a party that does not train or submit models, such as a protected CI secret.
 - The tool trusts that prediction files come from the models they claim to. Model provenance is the quality system's job.
 - In thresholdout mode each look still leaks a little information. The look budget bounds the total.

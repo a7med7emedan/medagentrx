@@ -35,7 +35,7 @@ from medagentrx.demo.cohort import (
 from medagentrx.demo.plan import demo_plan
 from medagentrx.engine import Evaluation, Verdict, evaluate
 from medagentrx.io.fingerprint import fingerprint_rows
-from medagentrx.ledger import append, exclusive, load_history
+from medagentrx.ledger import append, exclusive, load_history, record
 from medagentrx.stats.delong import auc_fast
 
 START = dt.datetime(2026, 4, 15, 9, 0, tzinfo=dt.UTC)
@@ -528,6 +528,8 @@ def run_scenario(
                 seed=seed,
             )
             entry = append(ledger, evaluation, already_locked=True)
+        if evaluation.verdict is Verdict.ACCEPTED:
+            _update_model_card(root, built, evaluation, ledger, entry)
         if on_step is not None:
             on_step(built["directory"], evaluation, entry)
         warnings = tuple(f.check_id for f in evaluation.findings if f.status.value == "warn")
@@ -537,6 +539,27 @@ def run_scenario(
             )
         )
     return result
+
+
+def _update_model_card(
+    root: Path, built: dict[str, Any], evaluation: Evaluation, ledger: Path, entry: dict[str, Any]
+) -> None:
+    """Follow the plan's update procedure: card section first, then its ledger record."""
+    from medagentrx.card import update_card
+    from medagentrx.io.hashing import sha256_file
+    from medagentrx.plan import load_plan
+    from medagentrx.report.json_report import report_dict
+
+    report = report_dict(evaluation, ledger={"seq": entry["seq"], "hash": entry["hash"]})
+    card = update_card(root / "MODEL_CARD.md", load_plan(built["inputs"]["plan"]), report)
+    record(
+        ledger,
+        "card",
+        str(evaluation.candidate_version),
+        details={"card_sha256": sha256_file(card)},
+        candidate_sha256=evaluation.inputs["candidate"],
+        now=built["now"] + dt.timedelta(minutes=1),
+    )
 
 
 def _run_guarded(
@@ -577,7 +600,8 @@ def _run_guarded(
             }
         )
     (result.directory / "agent-answers.json").write_text(json.dumps(answers, indent=2) + "\n")
-    for step, entry in zip(scenario.steps, read_entries(ledger), strict=True):
+    looks = [e for e in read_entries(ledger) if e.get("kind") in ("evaluation", "guard")]
+    for step, entry in zip(scenario.steps, looks, strict=True):
         result.steps.append(
             StepResult(
                 step,

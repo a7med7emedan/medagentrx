@@ -14,7 +14,8 @@ SPDX-License-Identifier: Apache-2.0
 | `medagentrx sample-size [PLAN] --auroc A --prevalence P` | Rows the locked test set needs for the plan's power. |
 | `medagentrx check PLAN --candidate ... --ledger ... --out DIR` | Check one update, record it in the ledger and write the reports. |
 | `medagentrx render-plan PLAN --out DIR` | Write the PCCP document in Markdown and HTML. |
-| `medagentrx card PLAN --report DIR/report.json --out MODEL_CARD.md` | Add an accepted version's performance to the model card. |
+| `medagentrx card PLAN --report DIR/report.json --out MODEL_CARD.md [--ledger LEDGER]` | Add an accepted version's performance to the model card, and record the update in the ledger. |
+| `medagentrx ledger release LEDGER --version V` | Record that an accepted version was put into service. |
 | `medagentrx ledger verify LEDGER` | Recompute the hash chain and compare it with the head. |
 | `medagentrx ledger show LEDGER` | List every evaluation and the budgets used. |
 | `medagentrx ledger keygen --out DIR` | Write an Ed25519 key pair for signing ledger heads and print its fingerprint. |

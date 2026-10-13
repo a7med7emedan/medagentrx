@@ -41,9 +41,13 @@ from medagentrx.signing import key_fingerprint, load_private_key, sign_head, ver
 from medagentrx.stats.alpha import AlphaState
 
 LEDGER_FORMAT = 1
-ENTRY_KINDS = ("evaluation", "guard")
-"""``evaluation``: a formal check, which spends alpha and may release an update.
-``guard``: an agent's look through the guard, which spends a test-set look only."""
+ENTRY_KINDS = ("evaluation", "guard", "release", "card")
+"""``evaluation``: a formal check, which spends alpha and may accept an update.
+``guard``: an agent's look through the guard, which spends a test-set look only.
+``release``: an accepted version put into service.
+``card``: the model card updated for an accepted version."""
+RECORD_KINDS = ("release", "card")
+"""Kinds that record what happened to an accepted version, not an evaluation."""
 GENESIS = "0" * 64
 DEFAULT_MAX_LEDGER_BYTES = 200_000_000
 LOCK_TIMEOUT_SECONDS = 10.0
@@ -137,8 +141,16 @@ def verify(
         return Verification(False, 0, GENESIS, (str(exc),))
     problems: list[str] = []
     previous = GENESIS
+    latest: dt.datetime | None = None
     for index, entry in enumerate(entries):
         where = f"entry {index}"
+        recorded = _recorded_at(entry)
+        if recorded is None:
+            problems.append(f"{where}: recording time is missing or has no time zone")
+        else:
+            if latest is not None and recorded < latest:
+                problems.append(f"{where}: recorded before the entry it follows")
+            latest = recorded if latest is None else max(latest, recorded)
         if entry.get("format") != LEDGER_FORMAT:
             problems.append(f"{where}: unknown format {entry.get('format')!r}")
         if entry.get("seq") != index:
@@ -152,6 +164,49 @@ def verify(
     last = previous if entries else GENESIS
     problems += _check_head(head_file, len(entries), last, public_key)
     return Verification(not problems, len(entries), last, tuple(problems))
+
+
+def _recorded_at(entry: dict[str, Any]) -> dt.datetime | None:
+    try:
+        moment = dt.datetime.fromisoformat(str(entry.get("recorded_at")))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else None
+
+
+def _head_is_signed(head_file: Path) -> bool:
+    try:
+        head = json.loads(head_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(head, dict) and "signature" in head
+
+
+def _verified_for_append(
+    path: Path, head_file: Path, signing_key: Ed25519PrivateKey | None
+) -> Verification:
+    """Verify before appending; a signed ledger stays signed."""
+    if signing_key is None and _head_is_signed(head_file):
+        raise LedgerError(f"{path}: the ledger head is signed; appending needs the signing key")
+    public_key = signing_key.public_key() if signing_key is not None else None
+    result = verify(path, head_path=head_file, public_key=public_key)
+    if not result.ok:
+        raise LedgerError(
+            f"{path}: refusing to append to a ledger that fails verification", result.problems
+        )
+    return result
+
+
+def _check_clock(entries: list[dict[str, Any]], moment: dt.datetime) -> None:
+    """Refuse a time earlier than the last entry, so frequency limits cannot be dodged."""
+    if moment.tzinfo is None:
+        raise LedgerError("ledger times must carry a time zone")
+    last = _recorded_at(entries[-1]) if entries else None
+    if last is not None and moment < last:
+        raise LedgerError(
+            f"the time {moment.isoformat()} is before the last ledger entry "
+            f"({last.isoformat()}); check the system clock"
+        )
 
 
 def _check_head(
@@ -195,6 +250,12 @@ def summarize(entries: list[dict[str, Any]]) -> History:
         if state:
             alpha = AlphaState(**state)
             break
+    deployed = tuple(
+        Release(e["candidate_version"], dt.datetime.fromisoformat(e["recorded_at"]))
+        for e in entries
+        if e.get("kind") == "release"
+    )
+    card_versions = tuple(e["candidate_version"] for e in entries if e.get("kind") == "card")
     released_predictions = {
         e["candidate_version"]: e["inputs"]["candidate"]
         for e in entries
@@ -211,6 +272,8 @@ def summarize(entries: list[dict[str, Any]]) -> History:
         alpha=alpha,
         entries=len(entries),
         released_predictions=released_predictions,
+        deployed=deployed,
+        card_versions=card_versions,
     )
 
 
@@ -370,18 +433,15 @@ def _append_unlocked(
     signing_key: Ed25519PrivateKey | None,
     answer: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    public_key = signing_key.public_key() if signing_key is not None else None
-    result = verify(path, head_path=head_file, public_key=public_key)
-    if not result.ok:
-        raise LedgerError(
-            f"{path}: refusing to append to a ledger that fails verification", result.problems
-        )
+    result = _verified_for_append(path, head_file, signing_key)
     if evaluation.ledger_entries_before != result.entries:
         raise LedgerError(
             f"{path}: the ledger has {result.entries} entries but the evaluation read "
             f"{evaluation.ledger_entries_before}; evaluate again with current budgets"
         )
-    history = summarize(read_entries(path))
+    entries = read_entries(path)
+    _check_clock(entries, evaluation.evaluated_at)
+    history = summarize(entries)
     entry = build_entry(
         evaluation,
         seq=result.entries,
@@ -390,12 +450,91 @@ def _append_unlocked(
         kind=kind,
         answer=answer,
     )
+    _write_entry(path, head_file, entry, signing_key)
+    return entry
+
+
+def _write_entry(
+    path: Path, head_file: Path, entry: dict[str, Any], signing_key: Ed25519PrivateKey | None
+) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(canonical(entry) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
-    _write_head(head_file, result.entries + 1, entry["hash"], signing_key)
-    return entry
+    _write_head(head_file, int(entry["seq"]) + 1, entry["hash"], signing_key)
+
+
+def record(
+    path: Path,
+    kind: str,
+    version: str,
+    *,
+    details: Mapping[str, Any] | None = None,
+    candidate_sha256: str | None = None,
+    now: dt.datetime | None = None,
+    head_path: Path | None = None,
+    signing_key: Ed25519PrivateKey | None = None,
+) -> dict[str, Any]:
+    """Record that an accepted version was released, or that its model card was updated.
+
+    The record names the accepted evaluation it follows by sequence number and
+    hash. Each version gets at most one record of each kind.
+
+    Args:
+        path: The ledger.
+        kind: ``release`` or ``card``.
+        version: The accepted version.
+        details: Extra fields kept with the record, such as the card's SHA-256.
+        candidate_sha256: When given, the accepted evaluation must have checked
+            this candidate prediction file.
+        now: Time of the record. Defaults to the current UTC time.
+        head_path: Head file. Defaults to ``head_path_for(path)``.
+        signing_key: Key that signs the new head; required when the head is signed.
+
+    Raises:
+        LedgerError: If the ledger fails verification, the version has no
+            accepted evaluation, the record exists, or the time runs backwards.
+    """
+    if kind not in RECORD_KINDS:
+        raise LedgerError(f"{kind!r} is not a record kind; use one of {', '.join(RECORD_KINDS)}")
+    now = now or dt.datetime.now(dt.UTC)
+    head_file = head_path or head_path_for(path)
+    with exclusive(path):
+        result = _verified_for_append(path, head_file, signing_key)
+        entries = read_entries(path)
+        accepted = [
+            e
+            for e in entries
+            if e.get("kind") == "evaluation"
+            and e.get("verdict") == "ACCEPTED"
+            and e.get("candidate_version") == version
+        ]
+        if not accepted:
+            raise LedgerError(f"{path}: version {version!r} has no accepted evaluation")
+        source = accepted[-1]
+        if candidate_sha256 is not None and source["inputs"].get("candidate") != candidate_sha256:
+            raise LedgerError(
+                f"{path}: the accepted evaluation of {version!r} checked a different "
+                "candidate prediction file"
+            )
+        if any(e.get("kind") == kind and e.get("candidate_version") == version for e in entries):
+            raise LedgerError(f"{path}: version {version!r} already has a {kind} record")
+        _check_clock(entries, now)
+        body: dict[str, Any] = {
+            "format": LEDGER_FORMAT,
+            "seq": result.entries,
+            "prev_hash": result.head,
+            "kind": kind,
+            "recorded_at": now.isoformat(),
+            "plan": source["plan"],
+            "candidate_version": version,
+            "evaluation": {"seq": source["seq"], "hash": source["hash"]},
+            "details": dict(details or {}),
+            "tool_version": source.get("tool_version"),
+        }
+        body["hash"] = entry_hash(body)
+        _write_entry(path, head_file, body, signing_key)
+    return body
 
 
 def _write_head(

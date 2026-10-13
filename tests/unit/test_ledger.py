@@ -295,7 +295,7 @@ def test_cli_check_writes_report_and_ledger(tmp_path: Path, case: Case) -> None:
     assert again.exit_code == 2
     assert "FAIL PLAN-004" in again.output
     shown = runner.invoke(app, ["ledger", "show", str(tmp_path / "ledger.jsonl")])
-    assert "looks used: 1; releases: 1" in shown.output
+    assert "looks used: 1; accepted: 1; in service: 0" in shown.output
     verified = runner.invoke(app, ["ledger", "verify", str(tmp_path / "ledger.jsonl")])
     assert verified.exit_code == 0
     assert verified.output.startswith("ok: 2 entries")
