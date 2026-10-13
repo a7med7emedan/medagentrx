@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+cff-version: 1.2.0
+message: "If you use MedAgentRx, please cite it as below."
+title: "MedAgentRx: an executable change control plan for self-improving medical AI"
+abstract: >-
+  MedAgentRx checks every update to a clinical prediction model, whether made by an
+  engineer, a pipeline or an AI agent, against its approved change plan (FDA PCCP,
+  EU AI Act Art. 43(4)), and returns one verdict: ACCEPTED, FAILED or OUTSIDE_PLAN.
+type: software
+authors:
+  - family-names: Hemedan
+    given-names: Ahmed
+license: Apache-2.0
+repository-code: "https://github.com/a7med7emedan/medagentrx"
+version: 0.1.0.dev0
+keywords:
+  - predetermined change control plan
+  - pccp
+  - medical device software
+  - eu-ai-act
+  - ai-agents
+  - model-governance
+  - non-inferiority

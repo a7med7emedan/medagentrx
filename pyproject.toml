@@ -91,6 +91,10 @@ dev = [
     "pre-commit>=4.0",
     "httpx>=0.28",
 ]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5",
+]
 
 [tool.uv]
 default-groups = ["dev"]
