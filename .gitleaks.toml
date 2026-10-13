@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# The default rules, with one narrow exception for a type annotation.
+
+title = "MedAgentRx"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Type annotations of signing key parameters; no key material"
+regexTarget = "match"
+regexes = ['''^signing_key: Ed25519PrivateKey\s*$''']
