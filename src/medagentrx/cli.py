@@ -110,6 +110,14 @@ def validate(
         raise typer.Exit(ExitCode.USAGE_ERROR)
 
 
+SigningKeyOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--signing-key",
+        envvar="MEDAGENTRX_SIGNING_KEY",
+        help="Ed25519 private key that signs the ledger head.",
+    ),
+]
 MaxFileBytesOption = Annotated[
     int, typer.Option("--max-file-bytes", min=1, help="Largest input file accepted, in bytes.")
 ]
@@ -253,14 +261,7 @@ def check(
     report_format: Annotated[
         str, typer.Option("--format", help="Report formats, comma separated: html,json,md,junit.")
     ] = "html,json,md,junit",
-    signing_key: Annotated[
-        Path | None,
-        typer.Option(
-            "--signing-key",
-            envvar="MEDAGENTRX_SIGNING_KEY",
-            help="Ed25519 private key that signs the ledger head.",
-        ),
-    ] = None,
+    signing_key: SigningKeyOption = None,
     max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
     max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
 ) -> None:
@@ -364,6 +365,24 @@ def ledger_keygen(
     typer.echo(f'ledger_signing_key_sha256: "{fingerprint}"')
 
 
+@ledger_app.command("release")
+def ledger_release(
+    ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
+    version: Annotated[str, typer.Option("--version", help="Accepted version put into service.")],
+    signing_key: SigningKeyOption = None,
+) -> None:
+    """Record that an accepted version was put into service."""
+    from medagentrx.ledger import record
+    from medagentrx.signing import load_private_key
+
+    try:
+        key = load_private_key(signing_key) if signing_key is not None else None
+        entry = record(ledger, "release", version, signing_key=key)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    typer.echo(f"recorded the release of {version} as entry {entry['seq']}")
+
+
 @ledger_app.command("show")
 def ledger_show(
     ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
@@ -384,6 +403,8 @@ def ledger_show(
         used = e.get("alpha", {}).get("used")
         alpha = "-" if used is None else f"{used:.5f}"
         failed = ",".join(e.get("failed_checks", [])) or "-"
+        if e.get("kind") in ("release", "card"):
+            failed = f"{e['kind']} of the accepted entry {e.get('evaluation', {}).get('seq')}"
         typer.echo(
             f"{e.get('seq', '?'):>4}  {str(e.get('recorded_at', ''))[:19]:<19} "
             f"{e.get('candidate_version', '')!s:<10} {e.get('verdict', '')!s:<12} "
@@ -391,7 +412,8 @@ def ledger_show(
         )
     history = summarize(entries)
     typer.echo(
-        f"looks used: {history.looks_used}; releases: {len(history.releases)}; "
+        f"looks used: {history.looks_used}; accepted: {len(history.releases)}; "
+        f"in service: {len(history.deployed)}; "
         f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}"
     )
 
@@ -431,16 +453,37 @@ def card(
     plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
     report: Annotated[Path, typer.Option("--report", help="report.json of an accepted update.")],
     out: Annotated[Path, typer.Option("--out", help="Model card file to create or update.")],
+    ledger: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="Record the card update in this ledger (DOC-001)."),
+    ] = None,
+    signing_key: SigningKeyOption = None,
 ) -> None:
     """Add or replace this version's performance section in the model card."""
     from medagentrx.card import load_report, update_card
+    from medagentrx.io.hashing import sha256_file
+    from medagentrx.ledger import record, signing_policy
     from medagentrx.plan import load_plan
 
     try:
-        written = update_card(out, load_plan(plan), load_report(report))
+        change_plan = load_plan(plan)
+        loaded = load_report(report)
+        key = signing_policy(change_plan, signing_key) if ledger is not None else None
+        written = update_card(out, change_plan, loaded)
+        if ledger is not None:
+            record(
+                ledger,
+                "card",
+                loaded["candidate_version"],
+                details={"card_sha256": sha256_file(written)},
+                candidate_sha256=loaded["inputs"].get("candidate"),
+                signing_key=key,
+            )
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     typer.echo(f"updated {written}")
+    if ledger is not None:
+        typer.echo(f"recorded the card update for {loaded['candidate_version']} in {ledger}")
 
 
 @app.command()

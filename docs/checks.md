@@ -29,7 +29,7 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 | PERF-006 | PERF | Test set has power to detect the margin | WARNING | Evidence-based principle |
 | LIFE-001 | LIFE | Cumulative drift against the anchor is within budget (bio-creep guard) | FAILED | Feng et al. 2021, Biometrics |
 | LIFE-002 | LIFE | Alpha budget is not exhausted | OUTSIDE PLAN | Error control across the lifecycle |
-| DOC-001 | DOC | Model card section for this version can be completed | FAILED | Update procedures; labelling |
+| DOC-001 | DOC | Model card kept up to date across versions | FAILED | Update procedures; labelling |
 
 ## Details
 
@@ -69,4 +69,4 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 
 **LIFE-002: Alpha budget is not exhausted.** Some alpha must remain for this evaluation.
 
-**DOC-001: Model card section for this version can be completed.** When the plan requires a model card update, every number it needs must exist.
+**DOC-001: Model card kept up to date across versions.** When the plan requires a model card update, the card must keep up.

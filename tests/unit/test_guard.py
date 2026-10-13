@@ -89,7 +89,8 @@ def test_guard_looks_spend_no_alpha_and_release_nothing(agent_case: Case, tmp_pa
     assert history.releases == ()
     assert history.alpha is not None
     assert history.alpha.spent == 0.0
-    formal = evaluate(**agent_case.kwargs(), history=history, n_replicates=200, now=NOW)
+    later = NOW + dt.timedelta(hours=3)
+    formal = evaluate(**agent_case.kwargs(), history=history, n_replicates=200, now=later)
     assert formal.verdict is Verdict.ACCEPTED
     assert formal.finding("DATA-004").details["this_look"] == 4
     append(ledger, formal)

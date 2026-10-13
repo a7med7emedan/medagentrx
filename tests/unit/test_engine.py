@@ -224,9 +224,12 @@ def test_changed_intended_use(tmp_path: Path) -> None:
 
 def test_update_count_exhausted(good: Case) -> None:
     releases = tuple(Release(f"2.0.{i}", NOW - dt.timedelta(days=400 + i)) for i in range(12))
-    result = run(good, _history_for(good, releases=releases))
+    cards = tuple(r.version for r in releases)
+    result = run(good, _history_for(good, releases=releases, card_versions=cards))
     assert result.failed_checks == ["PLAN-004"]
     assert "All 12 updates" in result.finding("PLAN-004").message
+    uncarded = run(good, _history_for(good, releases=releases))
+    assert uncarded.failed_checks == ["PLAN-004", "DOC-001"]
 
 
 def test_update_frequency_exceeded(good: Case) -> None:

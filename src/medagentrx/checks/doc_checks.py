@@ -16,18 +16,32 @@ from medagentrx.stats.metrics import sensitivity, specificity
 @check(
     "DOC-001",
     Family.DOC,
-    "Model card section for this version can be completed",
+    "Model card kept up to date across versions",
     Breaks.FAILED,
     "Update procedures; labelling",
 )
 def model_card(ctx: Context) -> Finding:
-    """When the plan requires a model card update, every number it needs must exist.
+    """When the plan requires a model card update, the card must keep up.
 
-    The section itself is written by ``medagentrx card`` from the report.
+    The previous version, if it was accepted under this plan, must have its
+    card update recorded in the ledger (``medagentrx card --ledger``) before
+    the next update is checked. Every number this version's section needs must
+    also exist. The section itself is written by ``medagentrx card`` from the
+    report.
     """
     if not ctx.plan.update_procedures.require_model_card_update:
         return Finding(
             "DOC-001", Status.NOT_APPLICABLE, "The plan does not require a model card update"
+        )
+    previous = ctx.meta.previous_version
+    accepted = {r.version for r in ctx.history.releases}
+    if previous in accepted and previous not in ctx.history.card_versions:
+        return Finding(
+            "DOC-001",
+            Status.FAIL,
+            f"The model card was not updated for version {previous}, accepted earlier under "
+            "this plan; run medagentrx card with --ledger first",
+            {"version": ctx.meta.version, "missing_card_for": previous},
         )
     if (skip := skipped("DOC-001", ctx)) is not None:
         return skip

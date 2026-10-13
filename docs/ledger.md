@@ -18,8 +18,25 @@ Each line is one JSON object:
 - `touched_test_set` says whether this evaluation spent a look at the locked test set.
 - `alpha.used` is the level spent, and `alpha.state_after` is the alpha accounting after this entry.
 - `inputs` holds the SHA-256 of every input file, so a reviewer can match files to decisions.
+- `kind` is `evaluation` for a formal check and `guard` for an agent's look. Guard entries spend a look but no alpha, and `answer` records what the agent was told.
+
+Times must not run backwards. `check` refuses an evaluation dated before the last entry, and `verify` reports any entry recorded before the one it follows. Without this, setting the clock back would let updates slip past the plan's frequency limit.
 
 An evaluation with an invalid plan file is reported as OUTSIDE_PLAN but not written, because it cannot be attributed to a plan.
+
+## Accepted, carded, in service
+
+An ACCEPTED verdict authorises a release. The plan's update count and frequency limits count acceptances, whether or not the version goes into service. Holding an acceptance back therefore cannot be used to get round a limit. Two kinds of record, each tied to the accepted evaluation by its sequence number and hash, say what happened next:
+
+```bash
+medagentrx card change-plan.yaml --report report/report.json --out MODEL_CARD.md --ledger ledger.jsonl
+medagentrx ledger release ledger.jsonl --version 2.1.0
+```
+
+- `card` writes the version's section into the model card and records the card's SHA-256. When the plan requires model card updates, DOC-001 fails the next update until the card for the previous accepted version is recorded.
+- `release` records that the version was put into service.
+
+Each version takes at most one record of each kind, and only after an ACCEPTED evaluation of that version. A card record also requires the report to be of the candidate file that was accepted.
 
 ## Head file
 

@@ -17,7 +17,7 @@ from medagentrx.stats.alpha import AlphaState
 
 @dataclass(frozen=True)
 class Release:
-    """An accepted update."""
+    """A version and when it was accepted or put into service."""
 
     version: str
     at: dt.datetime
@@ -32,11 +32,15 @@ class History:
         plan_revision: Revision of that plan.
         plan_fingerprint: Fingerprint of that plan.
         looks_used: Evaluations that touched the locked test set.
-        releases: Accepted updates, oldest first.
+        releases: Accepted updates, oldest first. The plan's update count and
+            frequency limits count these, whether or not the version was put into
+            service, so an acceptance cannot be held back to dodge a limit.
         alpha: Alpha state after the last formal evaluation, or None if none yet.
         entries: Number of ledger entries this summary was read from.
         released_predictions: SHA-256 of the candidate prediction file of each
-            released version, by version.
+            accepted version, by version.
+        deployed: Accepted versions recorded as put into service, oldest first.
+        card_versions: Accepted versions whose model card update was recorded.
     """
 
     plan_id: str | None = None
@@ -47,3 +51,5 @@ class History:
     alpha: AlphaState | None = None
     entries: int = 0
     released_predictions: dict[str, str] = field(default_factory=dict)
+    deployed: tuple[Release, ...] = field(default_factory=tuple)
+    card_versions: tuple[str, ...] = field(default_factory=tuple)
