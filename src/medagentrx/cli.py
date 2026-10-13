@@ -156,6 +156,14 @@ def check(
     report_format: Annotated[
         str, typer.Option("--format", help="Report formats, comma separated: html,json,md,junit.")
     ] = "html,json,md,junit",
+    signing_key: Annotated[
+        Path | None,
+        typer.Option(
+            "--signing-key",
+            envvar="MEDAGENTRX_SIGNING_KEY",
+            help="Ed25519 private key that signs the ledger head.",
+        ),
+    ] = None,
     max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
     max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
 ) -> None:
@@ -181,6 +189,7 @@ def check(
             n_replicates=replicates,
             formats=parse_formats(report_format),
             limits=limits,
+            signing_key=signing_key,
         )
     except MedAgentRxError as exc:
         raise _fail(exc) from None
@@ -210,24 +219,52 @@ def ledger_verify(
     head: Annotated[
         Path | None, typer.Option("--head", help="Head file. Defaults to LEDGER.head.")
     ] = None,
+    public_key: Annotated[
+        Path | None,
+        typer.Option("--public-key", help="Require a valid head signature by this public key."),
+    ] = None,
 ) -> None:
     """Recompute the hash chain and compare it with the recorded head.
 
     Exit codes: 0 intact, 1 fails verification, 3 input or usage error.
     """
     from medagentrx.ledger import verify
+    from medagentrx.signing import load_public_key
 
     try:
-        result = verify(ledger, head_path=head)
+        key = load_public_key(public_key) if public_key is not None else None
+        result = verify(ledger, head_path=head, public_key=key)
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     if result.ok:
-        typer.echo(f"ok: {result.entries} entries, head {result.head}")
+        signed = ", signature valid" if public_key is not None else ""
+        typer.echo(f"ok: {result.entries} entries, head {result.head}{signed}")
         return
     typer.echo(f"ledger fails verification: {ledger}", err=True)
     for problem in result.problems:
         typer.echo(f"  - {problem}", err=True)
     raise typer.Exit(1)
+
+
+@ledger_app.command("keygen")
+def ledger_keygen(
+    out: Annotated[Path, typer.Option("--out", help="Folder for the key pair.")] = Path(),
+) -> None:
+    """Create an Ed25519 key pair for signing ledger heads.
+
+    Keep ledger-signing.key secret, for example as a CI secret. Commit
+    ledger-signing.pub, and put the printed fingerprint in the plan as
+    ledger_signing_key_sha256. Set MEDAGENTRX_SIGNING_KEY_PASSPHRASE to encrypt
+    the private key.
+    """
+    from medagentrx.signing import generate_key_pair
+
+    try:
+        fingerprint = generate_key_pair(out / "ledger-signing.key", out / "ledger-signing.pub")
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    typer.echo(f"wrote {out / 'ledger-signing.key'} (secret) and {out / 'ledger-signing.pub'}")
+    typer.echo(f'ledger_signing_key_sha256: "{fingerprint}"')
 
 
 @ledger_app.command("show")

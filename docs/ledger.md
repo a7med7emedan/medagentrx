@@ -25,15 +25,32 @@ An evaluation with an invalid plan file is reported as OUTSIDE_PLAN but not writ
 
 `ledger.jsonl.head` records the number of entries and the last hash. Removing entries from the end of the ledger leaves a valid chain, but it no longer matches the head. For the strongest guarantee, keep a copy of the head where the ledger's writers cannot change it, such as a CI artifact or a commit.
 
+## Signed heads
+
+A hash chain shows that entries were edited. It cannot stop someone who can write both the ledger and its head from rewriting the whole chain. Signing the head closes that gap. The signing key stays with a trusted party, such as a CI secret, and anyone can verify with the public key.
+
+```bash
+medagentrx ledger keygen --out keys/
+```
+
+This writes `ledger-signing.key` with owner-only permissions and `ledger-signing.pub`, and prints the key fingerprint. Set `MEDAGENTRX_SIGNING_KEY_PASSPHRASE` before running it to encrypt the private key. Pin the key in the plan:
+
+```yaml
+ledger_signing_key_sha256: "<fingerprint printed by keygen>"
+```
+
+With the key pinned, `check` and the guard refuse to run without the matching key, given by `--signing-key` or `MEDAGENTRX_SIGNING_KEY`. Each head then carries an Ed25519 signature over the entry count, the last hash and the key fingerprint. Because the fingerprint is part of the plan, changing the key changes the plan, and PLAN-001 reports it.
+
 ## Verifying
 
 ```bash
 medagentrx ledger verify ledger.jsonl
 medagentrx ledger verify ledger.jsonl --head /trusted/copy/ledger.jsonl.head
+medagentrx ledger verify ledger.jsonl --public-key keys/ledger-signing.pub
 medagentrx ledger show ledger.jsonl
 ```
 
-`verify` exits with 0 when the chain and head agree, 1 when they do not, and 3 for an input or usage error. `check` refuses to use, or append to, a ledger that fails verification.
+`verify` exits with 0 when the chain and head agree, 1 when they do not, and 3 for an input or usage error. With `--public-key`, the head must also carry a valid signature from that key. `check` refuses to use, or append to, a ledger that fails verification.
 
 ## Concurrency
 
