@@ -14,3 +14,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The image follows a Python version the package supports; moving it is a
+      # deliberate change, so only patch and digest updates are proposed.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
