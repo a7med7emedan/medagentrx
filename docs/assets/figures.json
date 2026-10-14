@@ -2,6 +2,5 @@
   "figure-timeline": "AUROC by version: 2.1.0 ACCEPTED AUROC 0.762, 2.2.0 ACCEPTED AUROC 0.754, 2.3.0 ACCEPTED AUROC 0.746, 2.4.0 ACCEPTED AUROC 0.738, 2.5.0 FAILED AUROC 0.730. Anchor AUROC 0.770, budget 0.04.",
   "figure-forest": "AUROC change by subgroup: sex=F +0.011 pass; sex=M +0.006 pass; age_band=18-44 +0.006 pass; age_band=45-64 +0.011 pass; age_band=65+ +0.009 pass; site=A +0.042 pass; site=B +0.038 pass; site=C -0.060 fail.",
   "figure-calibration": "Calibration of the candidate: slope 1.11, intercept -0.05, against the previous version and the diagonal.",
-  "figure-decision": "Net benefit of candidate, previous version, treat all and treat none; plan thresholds 0.1, 0.2, 0.3.",
-  "figure-architecture": "Architecture: the change plan, prediction files, training manifest and model metadata are validated and loaded, checked by the engine with the statistics core and the decision ledger, and give one verdict with HTML, JSON, Markdown and JUnit reports."
+  "figure-decision": "Net benefit of candidate, previous version, treat all and treat none; plan thresholds 0.1, 0.2, 0.3."
 }

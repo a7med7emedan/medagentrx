@@ -4,7 +4,7 @@ SPDX-License-Identifier: Apache-2.0
 -->
 
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="MedAgentRx logo: a prescription sign whose upright stroke is a gate post and whose crossing stroke is a confidence-interval whisker" width="360">
+  <img src="https://a7med7emedan.github.io/medagentrx/assets/logo.svg" alt="MedAgentRx logo: a prescription sign whose upright stroke is a gate post and whose crossing stroke is a confidence-interval whisker" width="360">
 </p>
 
 <p align="center"><strong>The prescription for self-improving medical AI.</strong><br>
@@ -14,8 +14,8 @@ Every model update, by an engineer, a pipeline or an AI agent, is checked agains
   <a href="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://pypi.org/project/medagentrx/"><img alt="PyPI" src="https://img.shields.io/pypi/v/medagentrx?color=0F766E"></a>
   <a href="https://a7med7emedan.github.io/medagentrx/"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-0F766E"></a>
-  <a href="pyproject.toml"><img alt="Python 3.11 to 3.13" src="https://img.shields.io/badge/python-3.11%20to%203.13-0F766E"></a>
-  <a href="LICENSE"><img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-0F766E"></a>
+  <a href="https://github.com/a7med7emedan/medagentrx/blob/main/pyproject.toml"><img alt="Python 3.11 to 3.13" src="https://img.shields.io/badge/python-3.11%20to%203.13-0F766E"></a>
+  <a href="https://github.com/a7med7emedan/medagentrx/blob/main/LICENSE"><img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-0F766E"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/a7med7emedan/medagentrx"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/a7med7emedan/medagentrx/badge"></a>
 </p>
 
@@ -23,13 +23,9 @@ Clinical risk models are increasingly retrained by scheduled pipelines and by AI
 
 The plan is a single YAML file. Each candidate update is evaluated against it and receives one verdict: **ACCEPTED**, **FAILED** or **OUTSIDE_PLAN**. Every evaluation, including every failure, is appended to a hash-chained ledger, and the plan's limits are read back from it. Each attempt uses up part of the plan's budget of looks at the locked test set. A model therefore cannot be selected simply because it passed once among many tries.
 
-Each verdict rests on established methods. AUROC is compared with paired DeLong tests, cross-checked against R pROC. Calibration is judged by slope and intercept, and clinical value by net benefit at the plan's decision thresholds. Every subgroup must be non-inferior on its own. Alpha is spent across the life of the plan, and each update is also compared with the originally authorised version, which catches slow drift. [Methods](docs/methods.md) gives the formulas and references.
+Each verdict rests on established methods. AUROC is compared with paired DeLong tests, cross-checked against R pROC. Calibration is judged by slope and intercept, and clinical value by net benefit at the plan's decision thresholds. Every subgroup must be non-inferior on its own. Alpha is spent across the life of the plan, and each update is also compared with the originally authorised version, which catches slow drift. [Methods](https://a7med7emedan.github.io/medagentrx/methods/) gives the formulas and references.
 
-<p align="center"><img src="docs/assets/demo.gif" alt="Terminal: medagentrx validates the example plan, then runs four planted scenarios on synthetic data; each gives its expected verdict" width="760"></p>
-
-<p align="center"><img src="docs/assets/figure-timeline.svg" alt="Update timeline: four updates each lose 0.008 AUROC and are accepted against their predecessor; the fifth reaches the drift budget against the authorised anchor and fails" width="760"></p>
-
-*Five updates, each non-inferior to the one before. The fifth exceeds the plan's drift budget against the authorised version and fails.*
+<p align="center"><img src="https://a7med7emedan.github.io/medagentrx/assets/how-it-works.svg" alt="How MedAgentRx decides: a candidate update from an engineer, a pipeline or an AI agent, together with the approved change plan, enters the gate. The gate asks whether the update is what was approved, whether it is inside the plan, and whether it is good enough. A hash-chained ledger records every attempt and supplies the remaining budgets. The result is ACCEPTED, FAILED or OUTSIDE_PLAN with an exit code, and reports for review." width="900"></p>
 
 ## What it checks
 
@@ -41,7 +37,7 @@ Each verdict rests on established methods. AUROC is compared with paired DeLong 
 | LIFE | No bio-creep against the authorised version; alpha left | FAILED or OUTSIDE_PLAN |
 | DOC | The model card is kept up to date across versions | FAILED |
 
-The [checks catalogue](docs/checks.md) lists all 19 checks with their regulatory cross-references.
+The [checks catalogue](https://a7med7emedan.github.io/medagentrx/checks/) lists all 19 checks with their regulatory cross-references.
 
 ## Quick start
 
@@ -60,6 +56,18 @@ medagentrx check change-plan.yaml \
   --candidate candidate.parquet --previous previous.parquet --anchor anchor.parquet \
   --manifest train_manifest.parquet --model-meta model.yaml \
   --ledger ledger.jsonl --out report/
+```
+
+A typical result, for an update that improved overall but lost accuracy at one hospital site:
+
+```text
+verdict: FAILED
+  FAIL PERF-005: Subgroup AUROC drop beyond the limit: site=C (-0.060)
+report: report/report.html
+report: report/report.json
+report: report/summary.md
+report: report/junit.xml
+ledger: entry 0 3dbcd0bb2b0b
 ```
 
 The exit code is the verdict: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input error. `report/` holds a self-contained HTML report, JSON, a Markdown summary and JUnit XML. MedAgentRx reads prediction files only and never loads a model binary.
@@ -87,7 +95,7 @@ performance:
               on_insufficient: fail, multiplicity: none}
 ```
 
-The full example is [`examples/sepsis-risk/change-plan.yaml`](examples/sepsis-risk/change-plan.yaml). `medagentrx render-plan` turns the same file into the PCCP document, with the FDA components and the EU AI Act cross-reference, so the document and the gate cannot drift apart.
+The full example is [`examples/sepsis-risk/change-plan.yaml`](https://github.com/a7med7emedan/medagentrx/blob/main/examples/sepsis-risk/change-plan.yaml). `medagentrx render-plan` turns the same file into the PCCP document, with the FDA components and the EU AI Act cross-reference, so the document and the gate cannot drift apart.
 
 ## Automated retraining and agents
 
@@ -99,14 +107,14 @@ decision = guard.submit("candidate.parquet", "model.yaml", manifest="train_manif
 print(decision.allowed, decision.reason, decision.looks_remaining)
 ```
 
-An agent may try only the modifications the plan marks as automatic. Each try spends one look at the locked test set. In the default thresholdout mode the agent learns only whether the candidate passes, with random noise added so that repeated tries reveal little about the test set. If the agent also supplies predictions on its own validation data, the guard follows Thresholdout (Dwork et al. 2015) and answers from those whenever they agree with the test set. See [For agents and AutoML](docs/agents.md).
+An agent may try only the modifications the plan marks as automatic. Each try spends one look at the locked test set. In the default thresholdout mode the agent learns only whether the candidate passes, with random noise added so that repeated tries reveal little about the test set. If the agent also supplies predictions on its own validation data, the guard follows Thresholdout (Dwork et al. 2015) and answers from those whenever they agree with the test set. See [For agents and AutoML](https://a7med7emedan.github.io/medagentrx/agents/).
 
 ## Continuous integration
 
 GitHub Actions:
 
 ```yaml
-- uses: a7med7emedan/medagentrx@v0.1.0
+- uses: a7med7emedan/medagentrx@v0.1.1
   with:
     plan: change-plan.yaml
     candidate: predictions/candidate.parquet
@@ -121,14 +129,14 @@ GitLab CI/CD:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.0
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.1
     inputs:
       image: <registry>/medagentrx@sha256:<digest>
       plan: change-plan.yaml
       # same inputs as above
 ```
 
-There is also a `medagentrx-validate` pre-commit hook. See the [CI guides](docs/ci.md).
+There is also a `medagentrx-validate` pre-commit hook. See the [CI guides](https://a7med7emedan.github.io/medagentrx/ci/).
 
 ## Verdicts
 
@@ -142,17 +150,17 @@ Warnings never change the verdict. They always appear in the report.
 
 ## Validation
 
-<p align="center"><img src="docs/assets/validation.svg" alt="Simulation grid across prevalence 5 to 30 percent and 500 to 20,000 rows: type I error between 0.047 and 0.054, power rising with size, bootstrap coverage between 0.933 and 0.950" width="760"></p>
+<p align="center"><img src="https://a7med7emedan.github.io/medagentrx/assets/validation.svg" alt="Simulation grid across prevalence 5 to 30 percent and 500 to 20,000 rows: type I error between 0.047 and 0.054, power rising with size, bootstrap coverage between 0.933 and 0.950" width="760"></p>
 
-The simulation grid spans prevalence 5 to 30 percent and test sets of 500 to 20,000 rows, with 20,000 replicates per cell for type I error and 10,000 for coverage. At a nominal one-sided 5 percent, the non-inferiority test rejects a true boundary null 4.7 to 5.4 percent of the time. Nominal 95 percent bootstrap intervals cover 93.3 to 95.0 percent. DeLong results match R pROC to 1e-8 on AUC and 1e-6 on standard error and z. See [validation results](docs/validation.md) and [methods](docs/methods.md).
+The simulation grid spans prevalence 5 to 30 percent and test sets of 500 to 20,000 rows, with 20,000 replicates per cell for type I error and 10,000 for coverage. At a nominal one-sided 5 percent, the non-inferiority test rejects a true boundary null 4.7 to 5.4 percent of the time. Nominal 95 percent bootstrap intervals cover 93.3 to 95.0 percent. DeLong results match R pROC to 1e-8 on AUC and 1e-6 on standard error and z. See [validation results](https://a7med7emedan.github.io/medagentrx/validation/) and [methods](https://a7med7emedan.github.io/medagentrx/methods/).
 
 ## Security
 
-Inputs are data only: no unpickling, no `eval`, no user code. Plans are parsed with a hardened safe YAML loader and strict schemas. Reports are self-contained and load nothing. The container runs as a non-root user with a read-only file system, and has no HIGH or CRITICAL Trivy findings. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Inputs are data only: no unpickling, no `eval`, no user code. Plans are parsed with a hardened safe YAML loader and strict schemas. Reports are self-contained and load nothing. The container runs as a non-root user with a read-only file system, and has no HIGH or CRITICAL Trivy findings. Report vulnerabilities privately as described in [SECURITY.md](https://github.com/a7med7emedan/medagentrx/blob/main/SECURITY.md).
 
 ## Citing
 
-If you use MedAgentRx in research, please cite it using [`CITATION.cff`](CITATION.cff).
+If you use MedAgentRx in research, please cite it using [`CITATION.cff`](https://github.com/a7med7emedan/medagentrx/blob/main/CITATION.cff).
 
 ## Disclaimer
 
@@ -160,4 +168,4 @@ MedAgentRx supports a quality management system. It is not legal or regulatory a
 
 ## Author
 
-Ahmed Hemedan. Licensed under [Apache-2.0](LICENSE).
+Ahmed Hemedan. Licensed under [Apache-2.0](https://github.com/a7med7emedan/medagentrx/blob/main/LICENSE).

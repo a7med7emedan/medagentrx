@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 
 **The prescription for self-improving medical AI.** Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4)).
 
+![How MedAgentRx decides: a candidate update and the approved change plan enter the gate, which asks whether the update is what was approved, whether it is inside the plan and whether it is good enough; a hash-chained ledger records every attempt; the result is ACCEPTED, FAILED or OUTSIDE_PLAN with reports.](assets/how-it-works.svg)
+
 Clinical risk models are increasingly retrained by scheduled pipelines and by AI agents. MedAgentRx lets them change a model only in the ways the approved change plan allows, and tests every change with the statistics a regulatory reviewer expects.
 
 ## Background: change control plans

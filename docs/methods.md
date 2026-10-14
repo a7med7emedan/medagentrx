@@ -90,6 +90,10 @@ The ledger records the level used by every evaluation, including failed ones.
 
 Every update is tested against the previous version and against the anchor. The lower bound of the interval for `AUC_new - AUC_anchor` must stay at or above `-max_drop_vs_anchor`. This stops a chain of individually non-inferior updates from drifting downwards (Feng et al. 2021).
 
+![AUROC by version: 2.1.0 ACCEPTED AUROC 0.762, 2.2.0 ACCEPTED AUROC 0.754, 2.3.0 ACCEPTED AUROC 0.746, 2.4.0 ACCEPTED AUROC 0.738, 2.5.0 FAILED AUROC 0.730. Anchor AUROC 0.770, budget 0.04.](assets/figure-timeline.svg)
+
+In the demo, five updates each lose 0.008 AUROC. Each is non-inferior to the one before, but the fifth exceeds the plan's drift budget against the authorised version and fails.
+
 ## Power
 
 The variance of one AUROC follows Hanley and McNeil (1982):

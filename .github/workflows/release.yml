@@ -27,6 +27,19 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
       - run: uv build
+      - name: Release notes from the changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          awk -v version="${TAG#v}" '
+            index($0, "## " version ",") == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "CHANGELOG.md has no section for ${TAG#v}" >&2
+            exit 1
+          fi
       - name: CycloneDX SBOM of the package
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
         with:
@@ -43,6 +56,7 @@ jobs:
           path: |
             dist/
             dist-sbom.cdx.json
+            release-notes.md
 
   pypi:
     needs: dist
@@ -122,4 +136,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/* dist-sbom.cdx.json --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+        run: gh release create "$TAG" dist/* dist-sbom.cdx.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "MedAgentRx ${TAG#v}" --notes-file release-notes.md
