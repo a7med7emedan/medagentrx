@@ -7,6 +7,18 @@ SPDX-License-Identifier: Apache-2.0
 
 All notable changes are recorded here. The format follows Keep a Changelog, and the project uses semantic versioning.
 
+## 0.1.1, 2026-10-14
+
+### Changed
+
+- The README opens with a figure of how the gate decides and shows the real output of a failing check. The terminal recording is removed, and the bio-creep timeline moves to the methods page.
+
+### Fixed
+
+- The README's images and links are absolute, so they also work on the PyPI project page.
+- The package metadata links the documentation and the changelog.
+- Release notes are taken from this changelog.
+
 ## 0.1.0, 2026-10-14
 
 First release.

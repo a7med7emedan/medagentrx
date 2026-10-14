@@ -7,7 +7,7 @@ against its approved change plan and receives one verdict: ACCEPTED, FAILED
 or OUTSIDE_PLAN.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from medagentrx.api import CheckResult, check
 from medagentrx.engine import Evaluation, Verdict, evaluate
