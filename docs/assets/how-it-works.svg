@@ -1,6 +1,6 @@
 <!-- SPDX-FileCopyrightText: 2026 Ahmed Hemedan -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-labelledby="title desc">
   <title id="title">How MedAgentRx decides</title>
   <desc id="desc">A candidate update from an engineer, a pipeline or an AI agent and the approved change plan enter the MedAgentRx gate. The gate asks three questions in order: is it what was approved, is it inside the plan, is it good enough. A hash-chained decision ledger records every attempt and supplies the remaining budgets. The result is one verdict with an exit code, ACCEPTED, FAILED or OUTSIDE_PLAN, and reports for review.</desc>
   <defs>
@@ -10,117 +10,117 @@
   </defs>
   <style>
     text { font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: #1E293B; }
-    .label { font-size: 12px; font-weight: 600; letter-spacing: 1.5px; fill: #64748B; }
-    .title { font-size: 16px; font-weight: 700; }
-    .q { font-size: 15px; font-weight: 700; }
-    .body { font-size: 13px; fill: #475569; }
-    .small { font-size: 12px; fill: #64748B; }
+    .label { font-size: 13px; font-weight: 600; letter-spacing: 1.5px; fill: #64748B; }
+    .title { font-size: 19px; font-weight: 700; }
+    .q { font-size: 17px; font-weight: 700; }
+    .body { font-size: 15px; fill: #475569; }
+    .small { font-size: 13.5px; fill: #64748B; }
     .mono { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; }
-    .fam { font-size: 11px; font-weight: 600; letter-spacing: 1px; fill: #0F766E; }
-    .chip { font-size: 13px; fill: #1E293B; }
-    .num { font-size: 13px; font-weight: 700; fill: #FFFFFF; }
-    .verdict { font-size: 15px; font-weight: 700; }
-    .line { stroke: #64748B; stroke-width: 1.6; fill: none; }
+    .fam { font-size: 12px; font-weight: 600; letter-spacing: 1px; fill: #0F766E; }
+    .chip { font-size: 15px; fill: #1E293B; }
+    .num { font-size: 14px; font-weight: 700; fill: #FFFFFF; }
+    .verdict { font-size: 17px; font-weight: 700; }
+    .line { stroke: #64748B; stroke-width: 1.8; fill: none; }
   </style>
 
-  <rect x="0.5" y="0.5" width="1199" height="599" rx="16" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <rect x="0.5" y="0.5" width="1199" height="639" rx="16" fill="#FFFFFF" stroke="#E2E8F0"/>
 
-  <text class="label" x="40" y="44">PROPOSED UPDATE</text>
-  <text class="label" x="400" y="44">THE GATE</text>
-  <text class="label" x="880" y="44">RESULT</text>
+  <text class="label" x="30" y="46">PROPOSED UPDATE</text>
+  <text class="label" x="390" y="46">THE GATE</text>
+  <text class="label" x="880" y="46">RESULT</text>
 
   <!-- Who proposes -->
-  <rect x="40" y="62" width="88" height="30" rx="15" fill="#F1F5F9" stroke="#CBD5E1"/>
-  <text class="chip" x="84" y="82" text-anchor="middle">Engineer</text>
-  <rect x="136" y="62" width="88" height="30" rx="15" fill="#F1F5F9" stroke="#CBD5E1"/>
-  <text class="chip" x="180" y="82" text-anchor="middle">Pipeline</text>
-  <rect x="232" y="62" width="98" height="30" rx="15" fill="#F1F5F9" stroke="#CBD5E1"/>
-  <text class="chip" x="281" y="82" text-anchor="middle">AI agent</text>
+  <rect x="30" y="64" width="98" height="34" rx="17" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text class="chip" x="79" y="86" text-anchor="middle">Engineer</text>
+  <rect x="136" y="64" width="94" height="34" rx="17" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text class="chip" x="183" y="86" text-anchor="middle">Pipeline</text>
+  <rect x="238" y="64" width="98" height="34" rx="17" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text class="chip" x="287" y="86" text-anchor="middle">AI agent</text>
 
   <!-- Candidate update -->
-  <rect x="40" y="110" width="290" height="150" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
-  <text class="title" x="60" y="140">Candidate update</text>
-  <text class="body" x="60" y="168">Predictions on the locked test set</text>
-  <text class="body" x="60" y="191"><tspan class="mono">model.yaml</tspan>: version and file hashes</text>
-  <text class="body" x="60" y="214">Training data manifest</text>
-  <text class="small" x="60" y="242">Prediction files only; no model binary</text>
+  <rect x="30" y="116" width="310" height="170" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text class="title" x="52" y="150">Candidate update</text>
+  <text class="body" x="52" y="180">Predictions on the locked test set</text>
+  <text class="body" x="52" y="206"><tspan class="mono">model.yaml</tspan>: version and hashes</text>
+  <text class="body" x="52" y="232">Training data manifest</text>
+  <text class="small" x="52" y="266">Prediction files only; no model binary</text>
 
   <!-- Approved change plan -->
-  <rect x="40" y="290" width="290" height="150" rx="12" fill="#FFFFFF" stroke="#0F766E" stroke-width="2"/>
-  <text class="title" x="60" y="320" style="fill:#0F766E">Approved change plan</text>
-  <text class="body mono" x="60" y="348">change-plan.yaml</text>
-  <text class="body" x="60" y="371">Allowed modifications</text>
-  <text class="body" x="60" y="394">Pass criteria and margins</text>
-  <text class="body" x="60" y="417">Budgets: test-set looks, updates, alpha</text>
+  <rect x="30" y="310" width="310" height="170" rx="12" fill="#FFFFFF" stroke="#0F766E" stroke-width="2"/>
+  <text class="title" x="52" y="344" style="fill:#0F766E">Approved change plan</text>
+  <text class="body mono" x="52" y="374">change-plan.yaml</text>
+  <text class="body" x="52" y="400">Allowed modifications</text>
+  <text class="body" x="52" y="426">Pass criteria and margins</text>
+  <text class="body" x="52" y="452">Budgets for looks, updates, alpha</text>
 
   <!-- Into the gate -->
-  <path class="line" d="M330 185 H396" marker-end="url(#arrow)"/>
-  <path class="line" d="M330 365 H396" marker-end="url(#arrow)"/>
+  <path class="line" d="M340 200 H386" marker-end="url(#arrow)"/>
+  <path class="line" d="M340 395 H386" marker-end="url(#arrow)"/>
 
   <!-- The gate -->
-  <rect x="400" y="62" width="420" height="378" rx="16" fill="#F0FDFA" stroke="#0F766E" stroke-width="2"/>
-  <rect x="424" y="92" width="15" height="12" rx="2" fill="#0F766E"/>
-  <path d="M427.5 92 V88.5 a4 4 0 0 1 8 0 V92" stroke="#0F766E" stroke-width="2" fill="none"/>
-  <text class="title" x="448" y="104">MedAgentRx</text>
-  <text class="small" x="796" y="104" text-anchor="end">Reads data only; runs no model code</text>
+  <rect x="390" y="64" width="440" height="416" rx="16" fill="#F0FDFA" stroke="#0F766E" stroke-width="2"/>
+  <rect x="414" y="95" width="16" height="13" rx="2" fill="#0F766E"/>
+  <path d="M418 95 V91 a4 4 0 0 1 8 0 V95" stroke="#0F766E" stroke-width="2" fill="none"/>
+  <text class="title" x="440" y="108">MedAgentRx</text>
+  <text class="small" x="806" y="108" text-anchor="end">Reads data only; runs no model code</text>
 
-  <rect x="424" y="118" width="372" height="98" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
-  <circle cx="450" cy="145" r="13" fill="#0F766E"/>
-  <text class="num" x="450" y="150" text-anchor="middle">1</text>
-  <text class="q" x="474" y="150">Is it what was approved?</text>
-  <text class="fam" x="474" y="168">PLAN · DATA</text>
-  <text class="body" x="474" y="188">Plan, intended use, test set and prediction</text>
-  <text class="body" x="474" y="206">files match their recorded hashes</text>
+  <rect x="414" y="124" width="392" height="108" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
+  <circle cx="442" cy="156" r="14" fill="#0F766E"/>
+  <text class="num" x="442" y="161" text-anchor="middle">1</text>
+  <text class="q" x="468" y="162">Is it what was approved?</text>
+  <text class="fam" x="468" y="182">PLAN · DATA</text>
+  <text class="body" x="468" y="204">Plan, intended use, test set and</text>
+  <text class="body" x="468" y="224">prediction files match their hashes</text>
 
-  <rect x="424" y="222" width="372" height="98" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
-  <circle cx="450" cy="249" r="13" fill="#0F766E"/>
-  <text class="num" x="450" y="254" text-anchor="middle">2</text>
-  <text class="q" x="474" y="254">Is it inside the plan?</text>
-  <text class="fam" x="474" y="272">PLAN · DATA · LIFE</text>
-  <text class="body" x="474" y="292">Listed change, training data in scope, no</text>
-  <text class="body" x="474" y="310">test overlap, looks and alpha still left</text>
+  <rect x="414" y="238" width="392" height="108" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
+  <circle cx="442" cy="270" r="14" fill="#0F766E"/>
+  <text class="num" x="442" y="275" text-anchor="middle">2</text>
+  <text class="q" x="468" y="276">Is it inside the plan?</text>
+  <text class="fam" x="468" y="296">PLAN · DATA · LIFE</text>
+  <text class="body" x="468" y="318">Listed change, training data in scope,</text>
+  <text class="body" x="468" y="338">no test overlap, looks and alpha left</text>
 
-  <rect x="424" y="326" width="372" height="98" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
-  <circle cx="450" cy="353" r="13" fill="#0F766E"/>
-  <text class="num" x="450" y="358" text-anchor="middle">3</text>
-  <text class="q" x="474" y="358">Is it good enough?</text>
-  <text class="fam" x="474" y="376">PERF · LIFE</text>
-  <text class="body" x="474" y="396">AUROC, calibration, net benefit, every</text>
-  <text class="body" x="474" y="414">subgroup, no drift from the authorised model</text>
+  <rect x="414" y="352" width="392" height="108" rx="10" fill="#FFFFFF" stroke="#B6DDD8"/>
+  <circle cx="442" cy="384" r="14" fill="#0F766E"/>
+  <text class="num" x="442" y="389" text-anchor="middle">3</text>
+  <text class="q" x="468" y="390">Is it good enough?</text>
+  <text class="fam" x="468" y="410">PERF · LIFE</text>
+  <text class="body" x="468" y="432">AUROC, calibration, net benefit, each</text>
+  <text class="body" x="468" y="452">subgroup, drift from the authorised model</text>
 
   <!-- Ledger -->
-  <path class="line" d="M560 440 V468" marker-end="url(#arrow)"/>
-  <text class="small" x="568" y="459">every attempt</text>
-  <path class="line" d="M700 470 V442" marker-end="url(#arrow)"/>
-  <text class="small" x="708" y="459">budgets</text>
-  <rect x="400" y="470" width="420" height="100" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
-  <text class="title" x="424" y="502">Decision ledger</text>
-  <text class="body" x="424" y="528">Every attempt is appended, failures included,</text>
-  <text class="body" x="424" y="548">hash-chained, optionally signed. Budgets read back.</text>
+  <path class="line" d="M560 480 V510" marker-end="url(#arrow)"/>
+  <text class="small" x="568" y="501">every attempt</text>
+  <path class="line" d="M700 512 V482" marker-end="url(#arrow)"/>
+  <text class="small" x="708" y="501">budgets</text>
+  <rect x="390" y="512" width="440" height="102" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
+  <text class="title" x="414" y="546">Decision ledger</text>
+  <text class="body" x="414" y="574">Every attempt is appended, failures included,</text>
+  <text class="body" x="414" y="596">hash-chained, optionally signed; budgets read back.</text>
 
   <!-- Out of the gate -->
-  <path class="line" d="M820 212 H876" marker-end="url(#arrow)"/>
-  <path class="line" d="M820 393 H876" marker-end="url(#arrow)"/>
+  <path class="line" d="M830 229 H876" marker-end="url(#arrow)"/>
+  <path class="line" d="M830 423 H876" marker-end="url(#arrow)"/>
 
   <!-- Verdicts -->
-  <rect x="880" y="110" width="280" height="62" rx="10" fill="#F0FDF4" stroke="#15803D" stroke-width="1.5"/>
-  <text class="verdict" x="900" y="136" style="fill:#15803D">ACCEPTED</text>
-  <text class="small mono" x="1142" y="136" text-anchor="end">exit 0</text>
-  <text class="body" x="900" y="158">Inside the plan, every criterion met</text>
+  <rect x="880" y="116" width="290" height="70" rx="10" fill="#F0FDF4" stroke="#15803D" stroke-width="1.5"/>
+  <text class="verdict" x="900" y="146" style="fill:#15803D">ACCEPTED</text>
+  <text class="small mono" x="1152" y="146" text-anchor="end">exit 0</text>
+  <text class="body" x="900" y="172">Inside the plan, all criteria met</text>
 
-  <rect x="880" y="181" width="280" height="62" rx="10" fill="#FEF2F2" stroke="#B91C1C" stroke-width="1.5"/>
-  <text class="verdict" x="900" y="207" style="fill:#B91C1C">FAILED</text>
-  <text class="small mono" x="1142" y="207" text-anchor="end">exit 1</text>
-  <text class="body" x="900" y="229">Inside the plan, a criterion not met</text>
+  <rect x="880" y="194" width="290" height="70" rx="10" fill="#FEF2F2" stroke="#B91C1C" stroke-width="1.5"/>
+  <text class="verdict" x="900" y="224" style="fill:#B91C1C">FAILED</text>
+  <text class="small mono" x="1152" y="224" text-anchor="end">exit 1</text>
+  <text class="body" x="900" y="250">A criterion was not met</text>
 
-  <rect x="880" y="252" width="280" height="62" rx="10" fill="#FFFBEB" stroke="#B45309" stroke-width="1.5"/>
-  <text class="verdict" x="900" y="278" style="fill:#B45309">OUTSIDE_PLAN</text>
-  <text class="small mono" x="1142" y="278" text-anchor="end">exit 2</text>
-  <text class="body" x="900" y="300">Not covered; needs a new submission</text>
+  <rect x="880" y="272" width="290" height="70" rx="10" fill="#FFFBEB" stroke="#B45309" stroke-width="1.5"/>
+  <text class="verdict" x="900" y="302" style="fill:#B45309">OUTSIDE_PLAN</text>
+  <text class="small mono" x="1152" y="302" text-anchor="end">exit 2</text>
+  <text class="body" x="900" y="328">Needs a new regulatory submission</text>
 
   <!-- Evidence -->
-  <rect x="880" y="346" width="280" height="94" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
-  <text class="title" x="900" y="376">Evidence for review</text>
-  <text class="body" x="900" y="401">HTML report, JSON, pull request</text>
-  <text class="body" x="900" y="421">summary and JUnit for CI</text>
+  <rect x="880" y="366" width="290" height="114" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text class="title" x="900" y="400">Evidence for review</text>
+  <text class="body" x="900" y="428">HTML report, JSON, pull request</text>
+  <text class="body" x="900" y="452">summary and JUnit for CI</text>
 </svg>

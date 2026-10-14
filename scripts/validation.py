@@ -243,7 +243,9 @@ def figure(cells: list[Cell]) -> str:
         panels[0].legend(fontsize=7, loc="upper right")
         buffer = io.StringIO()
         fig.savefig(buffer, format="svg", metadata={"Date": None, "Creator": None})
-    return clean_svg(buffer.getvalue())
+    # An <img> tag draws an SVG only when it declares its namespaces.
+    namespaces = 'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+    return clean_svg(buffer.getvalue()).replace("<svg ", "<svg " + namespaces, 1)
 
 
 def check(cells: list[Cell]) -> list[str]:
