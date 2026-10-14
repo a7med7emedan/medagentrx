@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Reporting a vulnerability
 
-Please report vulnerabilities privately through GitHub's **Report a vulnerability** button on the repository's Security tab (private vulnerability reporting). Do not open a public issue.
+Please report vulnerabilities privately through GitHub's private vulnerability reporting: open a [new security advisory](https://github.com/a7med7emedan/medagentrx/security/advisories/new), or use the **Report a vulnerability** button on the [Security tab](https://github.com/a7med7emedan/medagentrx/security). Do not open a public issue.
 
 Include the version, a description, steps to reproduce and the impact you expect. Synthetic inputs are best; never send real patient data.
 
