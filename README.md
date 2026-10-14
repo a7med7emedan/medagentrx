@@ -12,6 +12,7 @@ Every model update, by an engineer, a pipeline or an AI agent, is checked agains
 
 <p align="center">
   <a href="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/a7med7emedan/medagentrx/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://pypi.org/project/medagentrx/"><img alt="PyPI" src="https://img.shields.io/pypi/v/medagentrx?color=0F766E"></a>
   <a href="https://a7med7emedan.github.io/medagentrx/"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-0F766E"></a>
   <a href="pyproject.toml"><img alt="Python 3.11 to 3.13" src="https://img.shields.io/badge/python-3.11%20to%203.13-0F766E"></a>
   <a href="LICENSE"><img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-0F766E"></a>
