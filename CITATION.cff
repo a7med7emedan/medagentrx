@@ -13,7 +13,8 @@ authors:
     given-names: Ahmed
 license: Apache-2.0
 repository-code: "https://github.com/a7med7emedan/medagentrx"
-version: 0.1.0rc1
+version: 0.1.0
+date-released: 2026-10-14
 keywords:
   - predetermined change control plan
   - pccp

@@ -45,11 +45,11 @@ The [checks catalogue](docs/checks.md) lists all 19 checks with their regulatory
 ## Quick start
 
 ```bash
-uv tool install git+https://github.com/a7med7emedan/medagentrx
+pip install medagentrx
 medagentrx demo
 ```
 
-MedAgentRx is installed from GitHub until the first release reaches PyPI. The demo runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
+The demo runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
 
 ```bash
 medagentrx init                                   # write a commented change-plan.yaml
@@ -105,7 +105,7 @@ An agent may try only the modifications the plan marks as automatic. Each try sp
 GitHub Actions:
 
 ```yaml
-- uses: a7med7emedan/medagentrx@main  # pin to a commit SHA or, after the first release, a tag
+- uses: a7med7emedan/medagentrx@v0.1.0
   with:
     plan: change-plan.yaml
     candidate: predictions/candidate.parquet
@@ -120,7 +120,7 @@ GitLab CI/CD:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@main
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.0
     inputs:
       image: <registry>/medagentrx@sha256:<digest>
       plan: change-plan.yaml

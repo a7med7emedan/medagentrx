@@ -28,7 +28,7 @@ RUN find . -depth -type d \( -name tests -o -name __pycache__ \) -exec rm -rf {}
           pyarrow/_gcsfs.*.so pyarrow/_azurefs.*.so pyarrow/_hdfs.*.so
 
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
-ARG VERSION=0.1.0rc1
+ARG VERSION=0.1.0
 LABEL org.opencontainers.image.title="MedAgentRx" \
       org.opencontainers.image.description="Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4))." \
       org.opencontainers.image.source="https://github.com/a7med7emedan/medagentrx" \

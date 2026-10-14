@@ -7,7 +7,7 @@ build-backend = "uv_build"
 
 [project]
 name = "medagentrx"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "The prescription for self-improving medical AI. Every model update, by an engineer, a pipeline or an AI agent, is checked against its approved change plan (FDA PCCP, EU AI Act Art. 43(4))."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
