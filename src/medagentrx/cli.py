@@ -404,7 +404,7 @@ def ledger_release(
 def ledger_show(
     ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
 ) -> None:
-    """List every evaluation in the ledger, oldest first."""
+    """List every entry in the ledger, oldest first."""
     from medagentrx.ledger import read_entries, summarize
 
     try:
@@ -422,17 +422,155 @@ def ledger_show(
         failed = ",".join(e.get("failed_checks", [])) or "-"
         if e.get("kind") in ("release", "card"):
             failed = f"{e['kind']} of the accepted entry {e.get('evaluation', {}).get('seq')}"
+        if e.get("kind") == "qc":
+            bias = (e.get("qc") or {}).get("bias")
+            measured = f"bias {bias:.3g}" if isinstance(bias, int | float) else "not measured"
+            failed = f"qc: {measured}; {failed}"
+        version = e.get("candidate_version") or e.get("model_version", "")
         typer.echo(
             f"{e.get('seq', '?'):>4}  {str(e.get('recorded_at', ''))[:19]:<19} "
-            f"{e.get('candidate_version', '')!s:<10} {e.get('verdict', '')!s:<12} "
+            f"{version!s:<10} {e.get('verdict', '')!s:<12} "
             f"{alpha:>8}  {failed}"
         )
     history = summarize(entries)
+    qc_runs = [e for e in entries if e.get("kind") == "qc"]
+    rejected = sum(1 for e in qc_runs if e.get("verdict") != "IN_CONTROL")
     typer.echo(
         f"looks used: {history.looks_used}; accepted: {len(history.releases)}; "
         f"in service: {len(history.deployed)}; "
-        f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}"
+        f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}; "
+        f"QC runs: {len(qc_runs)} ({rejected} outside the plan)"
     )
+
+
+qc_app = typer.Typer(
+    help="Deployment QC: control samples scored by the live system.", no_args_is_help=True
+)
+app.add_typer(qc_app, name="qc")
+
+
+@qc_app.command("init")
+def qc_init_command(
+    control_inputs: Annotated[
+        Path,
+        typer.Option("--control-inputs", help="Raw control records with a row_id column."),
+    ],
+    scores: Annotated[
+        Path, typer.Option("--scores", help="Expected scores of VERSION on the control set.")
+    ],
+    version: Annotated[str, typer.Option("--version", help="Version the scores belong to.")],
+    test_set: Annotated[
+        Path | None,
+        typer.Option("--test-set", help="Locked test-set predictions; control ids must differ."),
+    ] = None,
+    manifest: Annotated[
+        Path | None,
+        typer.Option("--manifest", help="Training manifest; control ids must differ."),
+    ] = None,
+    plan: Annotated[
+        Path | None,
+        typer.Option(
+            "--plan", help="Plan with a deployment_qc block: print only the new version's entry."
+        ),
+    ] = None,
+    tolerance: Annotated[
+        float,
+        typer.Option(
+            "--tolerance", min=1e-12, max=1.0, help="Largest per-record difference allowed."
+        ),
+    ] = 1.0e-6,
+    max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
+    max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+) -> None:
+    """Fingerprint a control set and print the deployment_qc block for the plan.
+
+    After a new release, run it again with --plan and --version to print the
+    expected_scores entry for that version.
+    """
+    from medagentrx.qc import qc_block_yaml, qc_entry_yaml, qc_init
+
+    limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
+    try:
+        init = qc_init(
+            control_inputs=control_inputs,
+            scores=scores,
+            version=version,
+            test_set=test_set,
+            manifest=manifest,
+            plan=plan,
+            limits=limits,
+        )
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    checked = " and ".join(init.checked_against) or "nothing; pass --test-set and --manifest"
+    typer.echo(f"{init.records} control records; disjointness checked against {checked}", err=True)
+    if plan is not None:
+        typer.echo(f"add under deployment_qc.expected_scores in {plan}:", err=True)
+        typer.echo(qc_entry_yaml(init), nl=False)
+    else:
+        typer.echo(qc_block_yaml(init, tolerance=tolerance), nl=False)
+
+
+@qc_app.command("run")
+def qc_run_command(
+    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    scores: Annotated[
+        Path, typer.Option("--scores", help="Live system's scores on the control set.")
+    ],
+    expected: Annotated[
+        Path, typer.Option("--expected", help="Expected scores of the model version.")
+    ],
+    model_version: Annotated[
+        str, typer.Option("--model-version", help="Version the live system reports.")
+    ],
+    ledger: Annotated[Path, typer.Option("--ledger", help="Decision ledger, created if missing.")],
+    out: Annotated[Path, typer.Option("--out", help="Directory for the reports.")],
+    control_inputs: Annotated[
+        Path | None,
+        typer.Option("--control-inputs", help="Raw control file, checked against the plan."),
+    ] = None,
+    report_format: Annotated[
+        str, typer.Option("--format", help="Report formats, comma separated: html,json,md,junit.")
+    ] = "html,json,md,junit",
+    signing_key: SigningKeyOption = None,
+    max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
+    max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+) -> None:
+    """Judge one QC run of the live system and record it.
+
+    Exit codes: 0 IN_CONTROL, 2 OUTSIDE_PLAN, 3 input or usage error.
+    """
+    from medagentrx.api import qc as run_qc_api
+    from medagentrx.report.writer import parse_formats
+
+    limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
+    try:
+        result = run_qc_api(
+            plan=plan,
+            scores=scores,
+            expected=expected,
+            model_version=model_version,
+            ledger=ledger,
+            out=out,
+            control_inputs=control_inputs,
+            formats=parse_formats(report_format),
+            limits=limits,
+            signing_key=signing_key,
+        )
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    run = result.run
+    typer.echo(f"qc verdict: {run.verdict.value}")
+    for finding in run.findings:
+        if finding.status.value in ("fail", "warn"):
+            typer.echo(f"  {finding.status.value.upper():4} {finding.check_id}: {finding.message}")
+    for note in run.notes:
+        typer.echo(f"  NOTE {note}")
+    for path in result.reports.values():
+        typer.echo(f"report: {path}")
+    entry = result.ledger_entry
+    typer.echo(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    raise typer.Exit(run.exit_code)
 
 
 @app.command("render-plan")

@@ -9,10 +9,11 @@ or OUTSIDE_PLAN.
 
 __version__ = "0.1.1"
 
-from medagentrx.api import CheckResult, check
+from medagentrx.api import CheckResult, QcResult, check, qc
 from medagentrx.engine import Evaluation, Verdict, evaluate
 from medagentrx.errors import InputError, MedAgentRxError, PlanError, StatsError
 from medagentrx.plan import ChangePlan, load_plan
+from medagentrx.qc import QcRun, QcVerdict
 
 __all__ = [
     "ChangePlan",
@@ -21,10 +22,14 @@ __all__ = [
     "InputError",
     "MedAgentRxError",
     "PlanError",
+    "QcResult",
+    "QcRun",
+    "QcVerdict",
     "StatsError",
     "Verdict",
     "__version__",
     "check",
     "evaluate",
     "load_plan",
+    "qc",
 ]
