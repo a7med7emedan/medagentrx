@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
-"""Read-only dashboard: plan overview, version timeline, reports and budgets.
+"""Read-only dashboard: plan overview, timeline, deployment QC, reports and budgets.
 
 The app only reads the ledger, the plan and a folder of reports. It has no
 write route, no cookies, no authentication and no script, and it loads
@@ -22,13 +22,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from medagentrx import __version__
-from medagentrx.card import load_report
+from medagentrx.card import load_qc_report, load_report
 from medagentrx.errors import MedAgentRxError
 from medagentrx.ledger import read_entries, summarize, verify
 from medagentrx.plan import load_plan
 from medagentrx.plan.models import ChangePlan
-from medagentrx.report.figures import budget_gauges, timeline
+from medagentrx.report.figures import SvgFigure, budget_gauges, levey_jennings, timeline
 from medagentrx.report.html import render_html
+from medagentrx.report.qc_report import render_qc_html
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
@@ -80,11 +81,36 @@ def _index_reports(folder: Path | None) -> dict[str, Path]:
         try:
             report = load_report(path)
         except MedAgentRxError:
-            continue
+            try:
+                report = load_qc_report(path)
+            except MedAgentRxError:
+                continue
         ledger = report.get("ledger") or {}
         if ledger.get("hash"):
             index[ledger["hash"]] = path
     return index
+
+
+def qc_charts(entries: list[dict[str, Any]]) -> list[tuple[str, SvgFigure]]:
+    """One Levey-Jennings chart per model version, from the QC entries of the ledger."""
+    by_version: dict[str, list[dict[str, Any]]] = {}
+    for entry in entries:
+        bias = (entry.get("qc") or {}).get("bias")
+        if entry.get("kind") == "qc" and isinstance(bias, int | float):
+            by_version.setdefault(str(entry.get("model_version")), []).append(entry)
+    charts = []
+    for version, runs in by_version.items():
+        latest = runs[-1]["qc"]
+        scaled = [r["qc"] for r in runs if isinstance(r["qc"].get("sd"), int | float)]
+        mean = scaled[-1]["mean"] if scaled else None
+        sd = scaled[-1]["sd"] if scaled else None
+        points = [
+            {"bias": r["qc"]["bias"], "in_control": r.get("verdict") == "IN_CONTROL"} for r in runs
+        ]
+        points[-1]["current"] = True
+        points[-1]["rules"] = [*latest.get("rejections", []), *latest.get("warnings", [])]
+        charts.append((version, levey_jennings(points, mean=mean, sd=sd)))
+    return charts
 
 
 def create_app(*, ledger: Path, reports: Path | None = None, plan: Path | None = None) -> FastAPI:
@@ -165,7 +191,24 @@ def create_app(*, ledger: Path, reports: Path | None = None, plan: Path | None =
         figure = None
         if any(p.get("auc") is not None for p in points):
             figure = timeline(points, anchor_auc=anchor_auc, budget=budget)
-        return page("timeline.html", figure=figure)
+        rows = [
+            {
+                "seq": e.get("seq"),
+                "recorded_at": str(e.get("recorded_at", ""))[:19],
+                "type": "QC run" if e.get("kind") == "qc" else "Update",
+                "version": e.get("candidate_version") or e.get("model_version"),
+                "verdict": e.get("verdict"),
+            }
+            for e in read_entries(ledger)
+            if e.get("kind") in ("evaluation", "qc")
+        ]
+        return page("timeline.html", figure=figure, rows=rows)
+
+    @app.get("/qc", response_class=HTMLResponse)
+    def qc_page() -> HTMLResponse:
+        entries = read_entries(ledger)
+        runs = [e for e in entries if e.get("kind") == "qc"]
+        return page("qc.html", charts=qc_charts(entries), runs=runs[-20:][::-1])
 
     @app.get("/budgets", response_class=HTMLResponse)
     def budgets_page() -> HTMLResponse:
@@ -195,6 +238,8 @@ def create_app(*, ledger: Path, reports: Path | None = None, plan: Path | None =
             raise HTTPException(status_code=404, detail="no such ledger entry")
         entry = entries[seq]
         report_path = report_index.get(entry.get("hash", ""))
+        if report_path is not None and entry.get("kind") == "qc":
+            return HTMLResponse(render_qc_html(load_qc_report(report_path), entries[: seq + 1]))
         if report_path is not None:
             return HTMLResponse(render_html(load_report(report_path), entries[: seq + 1]))
         return page("entry.html", entry=entry)
