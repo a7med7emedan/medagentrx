@@ -184,7 +184,8 @@ def _qc_section(plan: ChangePlan) -> Section | None:
         else (
             f"The bias mean and SD are estimated from the first {qc.baseline_runs} in-control "
             "runs of each version; until then only the version, binding and tolerance "
-            f"checks apply. The SD is at least one third of the tolerance."
+            "checks apply. The SD is at least the tolerance divided by three times the square "
+            "root of the number of control records."
         )
     )
     return Section(

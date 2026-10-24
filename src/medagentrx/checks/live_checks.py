@@ -10,6 +10,8 @@ undeclared update, so it breaks the plan.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from medagentrx.checks.qc_context import QcContext
@@ -27,7 +29,18 @@ from medagentrx.stats.multirule import (
 WORST_SHOWN = 5
 HISTORY_SHOWN = 60
 SD_FLOOR_SHARE = 3.0
-"""The estimated SD is at least the per-record tolerance divided by this."""
+"""Records are allowed to vary with an SD of up to the tolerance divided by this."""
+
+
+def sd_floor(tolerance: float, records: int) -> float:
+    """Smallest SD of the run bias used by the multirule check.
+
+    It is the SD the bias would have if every one of ``records`` control
+    records varied independently with an SD of a third of the tolerance, the
+    most noise the plan accepts. A deterministic stack has a zero SD, and the
+    floor keeps rounding from counting as a shift without blunting the rules.
+    """
+    return tolerance / (SD_FLOOR_SHARE * math.sqrt(records))
 
 
 def _deviations(ctx: QcContext) -> tuple[list[str], np.ndarray]:
@@ -194,7 +207,7 @@ def qc_baseline(ctx: QcContext) -> tuple[Baseline | None, int]:
         return given_baseline(qc.sd), len(accepted)
     if len(accepted) < qc.baseline_runs:
         return None, len(accepted)
-    floor = qc.tolerance.absolute / SD_FLOOR_SHARE
+    floor = sd_floor(qc.tolerance.absolute, ctx.live.n)
     return estimate_baseline(accepted[: qc.baseline_runs], floor=floor), len(accepted)
 
 

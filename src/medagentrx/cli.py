@@ -663,17 +663,22 @@ def demo(
 ) -> None:
     """Run the planted scenarios on synthetic data and check each verdict.
 
+    The update scenarios come first, then the deployment QC scenarios.
     Exit codes: 0 every scenario gave its expected verdict, 1 otherwise.
     """
-    from medagentrx.demo import SCENARIOS, run_all
+    from medagentrx.demo import QC_SCENARIOS, SCENARIOS, run_all, run_all_qc
     from medagentrx.ledger import read_entries
+    from medagentrx.qc import QcRun
+    from medagentrx.report.qc_report import write_qc_reports
     from medagentrx.report.writer import write_reports
 
-    unknown = [name for name in scenario or [] if name not in SCENARIOS]
+    unknown = [n for n in scenario or [] if n not in SCENARIOS and n not in QC_SCENARIOS]
     if unknown:
         typer.echo(f"error: unknown scenario(s): {', '.join(unknown)}", err=True)
-        typer.echo(f"choose from: {', '.join(SCENARIOS)}", err=True)
+        typer.echo(f"choose from: {', '.join([*SCENARIOS, *QC_SCENARIOS])}", err=True)
         raise typer.Exit(ExitCode.USAGE_ERROR)
+    update_names = [n for n in scenario or [] if n in SCENARIOS]
+    qc_names = [n for n in scenario or [] if n in QC_SCENARIOS]
 
     def write(directory: Path, evaluation: Evaluation, entry: dict[str, Any] | None) -> None:
         ledger = directory / "ledger.jsonl"
@@ -682,16 +687,30 @@ def demo(
         entries = read_entries(ledger) if ledger.exists() else []
         write_reports(directory / "report", evaluation, entry=entry, entries=entries)
 
+    def write_qc(directory: Path, run: QcRun, entry: dict[str, Any]) -> None:
+        entries = read_entries(directory / "ledger.jsonl")
+        write_qc_reports(directory / "report", run, entry=entry, entries=entries)
+
     typer.echo("Synthetic data only. No real patient data is used.")
-    results = run_all(out, names=scenario, n_replicates=replicates, on_step=write)
-    typer.echo(f"{'scenario':<20} {'steps':>5}  {'expected':<14} {'got':<14} {'checks':<12} ok")
+    results: list[Any] = []
+    if update_names or not qc_names:
+        results += run_all(out, names=update_names or None, n_replicates=replicates, on_step=write)
+    if qc_names or not update_names:
+        results += run_all_qc(out, names=qc_names or None, on_step=write_qc)
+    width = max(len(r.scenario.name) for r in results) + 1
+    typer.echo(
+        f"{'scenario':<{width}} {'steps':>5}  {'expected':<14} {'got':<14} {'checks':<17} ok"
+    )
     for result in results:
         rows: list[list[Any]] = []
         for step in result.steps:
+            expected = step.step.expected
+            got = step.verdict
             row = [
-                step.step.expected.value,
-                step.verdict.value,
-                ",".join(step.failed) or "-",
+                getattr(expected, "value", expected),
+                getattr(got, "value", got),
+                ",".join(step.failed)
+                or ("warn " + ",".join(step.warnings) if step.warnings else "-"),
                 "yes" if step.ok else "NO",
             ]
             if rows and rows[-1][1:] == row:
@@ -700,7 +719,7 @@ def demo(
                 rows.append([1, *row])
         for count, expected, got, checks, mark in rows:
             name = result.scenario.name
-            typer.echo(f"{name:<20} {count:>5}  {expected:<14} {got:<14} {checks:<12} {mark}")
+            typer.echo(f"{name:<{width}} {count:>5}  {expected:<14} {got:<14} {checks:<17} {mark}")
     passed = sum(r.ok for r in results)
     typer.echo(f"{passed} of {len(results)} scenarios gave their expected verdict. Files: {out}")
     raise typer.Exit(0 if passed == len(results) else 1)
