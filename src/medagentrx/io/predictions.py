@@ -5,6 +5,9 @@
 Columns: ``row_id`` (unique string), ``y_true`` (0 or 1), ``y_score`` (a
 probability in [0, 1]) and any subgroup columns named in the plan. Files are
 joined on ``row_id``.
+
+Score files for deployment QC use the same format without labels: ``row_id``
+and ``y_score`` only (``load_scores``).
 """
 
 from __future__ import annotations
@@ -85,6 +88,64 @@ def load_predictions(
             {name: _frozen(np.array(values, dtype=np.str_)) for name, values in subgroups.items()}
         ),
     )
+
+
+@dataclass(frozen=True)
+class Scores:
+    """Validated scores without labels, as produced on the QC control set.
+
+    Attributes:
+        source: The path as given by the user.
+        row_id: Row identifiers, unique.
+        y_score: Scores as float64, in [0, 1].
+    """
+
+    source: str
+    row_id: npt.NDArray[np.str_]
+    y_score: npt.NDArray[np.float64]
+
+    @property
+    def n(self) -> int:
+        """Number of rows."""
+        return int(self.row_id.shape[0])
+
+    def by_id(self) -> dict[str, float]:
+        """Score of each row id."""
+        return dict(zip(self.row_id.tolist(), self.y_score.tolist(), strict=True))
+
+
+def load_scores(
+    path: str | Path, *, limits: Limits | None = None, base: Path | None = None
+) -> Scores:
+    """Load and validate a score file: ``row_id`` and ``y_score``, no labels.
+
+    Raises:
+        InputError: If a column is missing, a value is invalid, or a row id repeats.
+    """
+    table = read_table(path, required=[ROW_ID, Y_SCORE], limits=limits, base=base)
+    if table.n_rows == 0:
+        raise InputError(f"{table.source}: no data rows")
+    row_id = _row_ids(table, ROW_ID)
+    y_score = _scores(table, row_id)
+    return Scores(
+        source=table.source,
+        row_id=_frozen(np.array(row_id, dtype=np.str_)),
+        y_score=_frozen(np.array(y_score, dtype=np.float64)),
+    )
+
+
+def load_row_ids(
+    path: str | Path, *, limits: Limits | None = None, base: Path | None = None
+) -> list[str]:
+    """The ``row_id`` column of any table, such as the raw QC control inputs.
+
+    Raises:
+        InputError: If the column is missing, empty, or repeats an id.
+    """
+    table = read_table(path, required=[ROW_ID], limits=limits, base=base)
+    if table.n_rows == 0:
+        raise InputError(f"{table.source}: no data rows")
+    return _row_ids(table, ROW_ID)
 
 
 _T = TypeVar("_T", bound=np.generic)

@@ -1,0 +1,161 @@
+{
+  "settings": {
+    "rules": [
+      "1_2s",
+      "1_3s",
+      "2_2s",
+      "R_4s",
+      "10_x"
+    ],
+    "years": 4000,
+    "days_per_year": 365,
+    "detection_replicates": 4000,
+    "lead_in_runs": 20,
+    "horizon_runs": 50,
+    "seed": 20261024
+  },
+  "given_sd": {
+    "baseline_runs": 0,
+    "false_alarms": {
+      "per_run": 0.006489041095890411,
+      "per_year_any": 0.85675,
+      "mean_alarms_per_year": 2.3685,
+      "per_run_by_rule": {
+        "1_3s": 0.0027212328767123287,
+        "2_2s": 0.0009773972602739726,
+        "R_4s": 0.0009198630136986302,
+        "10_x": 0.0019917808219178084
+      }
+    },
+    "detection": [
+      {
+        "shift_sd": 0.5,
+        "first_run": 0.012,
+        "within_10_runs": 0.137,
+        "within_50_runs": 0.59175,
+        "median_runs_to_detection": 39.0,
+        "mean_runs_to_detection_if_detected": 22.838614279678918
+      },
+      {
+        "shift_sd": 1.0,
+        "first_run": 0.03075,
+        "within_10_runs": 0.4635,
+        "within_50_runs": 0.97725,
+        "median_runs_to_detection": 11.0,
+        "mean_runs_to_detection_if_detected": 14.272192376566897
+      },
+      {
+        "shift_sd": 2.0,
+        "first_run": 0.17875,
+        "within_10_runs": 0.9875,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 3.0,
+        "mean_runs_to_detection_if_detected": 3.762
+      },
+      {
+        "shift_sd": 3.0,
+        "first_run": 0.5125,
+        "within_10_runs": 1.0,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 1.0,
+        "mean_runs_to_detection_if_detected": 1.682
+      }
+    ]
+  },
+  "estimated_sd_20": {
+    "baseline_runs": 20,
+    "false_alarms": {
+      "per_run": 0.018766438356164383,
+      "per_year_any": 0.862,
+      "mean_alarms_per_year": 6.84975,
+      "per_run_by_rule": {
+        "1_3s": 0.008963698630136987,
+        "2_2s": 0.0033376712328767122,
+        "R_4s": 0.00236986301369863,
+        "10_x": 0.005178082191780822
+      }
+    },
+    "detection": [
+      {
+        "shift_sd": 0.5,
+        "first_run": 0.027,
+        "within_10_runs": 0.23475,
+        "within_50_runs": 0.64675,
+        "median_runs_to_detection": 30.0,
+        "mean_runs_to_detection_if_detected": 18.693853884808657
+      },
+      {
+        "shift_sd": 1.0,
+        "first_run": 0.054,
+        "within_10_runs": 0.51025,
+        "within_50_runs": 0.9415,
+        "median_runs_to_detection": 10.0,
+        "mean_runs_to_detection_if_detected": 13.182156133828997
+      },
+      {
+        "shift_sd": 2.0,
+        "first_run": 0.20875,
+        "within_10_runs": 0.9695,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 3.0,
+        "mean_runs_to_detection_if_detected": 4.05175
+      },
+      {
+        "shift_sd": 3.0,
+        "first_run": 0.528,
+        "within_10_runs": 0.9995,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 1.0,
+        "mean_runs_to_detection_if_detected": 1.80075
+      }
+    ]
+  },
+  "estimated_sd_60": {
+    "baseline_runs": 60,
+    "false_alarms": {
+      "per_run": 0.009711643835616438,
+      "per_year_any": 0.85275,
+      "mean_alarms_per_year": 3.54475,
+      "per_run_by_rule": {
+        "1_3s": 0.004258219178082192,
+        "2_2s": 0.001565068493150685,
+        "R_4s": 0.0013205479452054795,
+        "10_x": 0.0028643835616438355
+      }
+    },
+    "detection": [
+      {
+        "shift_sd": 0.5,
+        "first_run": 0.0165,
+        "within_10_runs": 0.18275,
+        "within_50_runs": 0.631,
+        "median_runs_to_detection": 35.0,
+        "mean_runs_to_detection_if_detected": 21.242868462757528
+      },
+      {
+        "shift_sd": 1.0,
+        "first_run": 0.0425,
+        "within_10_runs": 0.47275,
+        "within_50_runs": 0.961,
+        "median_runs_to_detection": 11.0,
+        "mean_runs_to_detection_if_detected": 13.869406867845994
+      },
+      {
+        "shift_sd": 2.0,
+        "first_run": 0.1915,
+        "within_10_runs": 0.98025,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 3.0,
+        "mean_runs_to_detection_if_detected": 3.8985
+      },
+      {
+        "shift_sd": 3.0,
+        "first_run": 0.541,
+        "within_10_runs": 1.0,
+        "within_50_runs": 1.0,
+        "median_runs_to_detection": 1.0,
+        "mean_runs_to_detection_if_detected": 1.68075
+      }
+    ]
+  }
+}

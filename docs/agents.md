@@ -28,6 +28,8 @@ decision.looks_remaining  # looks left under the plan
 - **Every look counts.** Each submission that reaches the data spends one look from `max_evaluations` and is written to the ledger, whether it passes or not. When the budget is used up, the guard refuses with DATA-004 and the update is outside the plan.
 - **No alpha, no release.** Guard looks spend no alpha and never count as released updates. A candidate the agent prefers still needs a formal `medagentrx check` before it can be accepted.
 
+An agent that operates the deployment can also run [deployment QC](qc.md) through the guard. `g.qc(scores, expected, model_version="2.0.0")` judges a run of the live system and records it in the same ledger. QC never touches the locked test set, so its exact result is returned.
+
 ## Thresholdout mode
 
 Each look tells the agent one bit about the plan's statistical criteria taken together. The guard puts every criterion that reads the test-set labels on one scale: the estimate's distance beyond its boundary, in standard errors, minus the critical value. A criterion passes exactly when this slack is positive. The guard takes the smallest slack across the plan, adds Laplace noise once, and answers whether the result is above zero. No metric is returned.

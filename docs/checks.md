@@ -9,6 +9,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Every check has an identifier, a family, what a failure does to the verdict, and a regulatory cross-reference. A failure marked OUTSIDE_PLAN makes the update outside the plan. Any other failure gives FAILED. Warnings never change the verdict.
 
+The PLAN, DATA, PERF, LIFE and DOC checks judge a candidate update (`medagentrx check`). The LIVE checks judge a [deployment QC](qc.md) run of the live system (`medagentrx qc run`), which is IN_CONTROL or OUTSIDE_PLAN.
+
 | Check | Family | What it checks | If it fails | Cross-reference |
 |---|---|---|---|---|
 | PLAN-001 | PLAN | Plan is valid and unchanged since the ledger began | OUTSIDE PLAN | A change to a PCCP needs a new submission |
@@ -30,6 +32,10 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 | LIFE-001 | LIFE | Cumulative drift against the anchor is within budget (bio-creep guard) | FAILED | Feng et al. 2021, Biometrics |
 | LIFE-002 | LIFE | Alpha budget is not exhausted | OUTSIDE PLAN | Error control across the lifecycle |
 | DOC-001 | DOC | Model card kept up to date across versions | FAILED | Update procedures; labelling |
+| LIVE-001 | LIVE | Live version is the released one | OUTSIDE PLAN | Update procedures; post-market monitoring |
+| LIVE-002 | LIVE | Score file is bound to the control set | OUTSIDE PLAN | Traceability; post-market monitoring |
+| LIVE-003 | LIVE | Every control record is within tolerance | OUTSIDE PLAN | Post-market monitoring; AI Act Art. 15 accuracy |
+| LIVE-004 | LIVE | Run bias passes the multirule QC rules | OUTSIDE PLAN | Westgard et al. 1981; post-market monitoring |
 
 ## Details
 
@@ -70,3 +76,11 @@ Every check has an identifier, a family, what a failure does to the verdict, and
 **LIFE-002: Alpha budget is not exhausted.** Some alpha must remain for this evaluation.
 
 **DOC-001: Model card kept up to date across versions.** When the plan requires a model card update, the card must keep up.
+
+**LIVE-001: Live version is the released one.** The version running live must be the latest released version.
+
+**LIVE-002: Score file is bound to the control set.** Live and expected scores must cover exactly the locked control ids.
+
+**LIVE-003: Every control record is within tolerance.** No control record may move further from its expected score than the tolerance.
+
+**LIVE-004: Run bias passes the multirule QC rules.** Westgard multirule on the run bias over this version's run history.

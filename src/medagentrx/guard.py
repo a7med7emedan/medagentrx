@@ -46,9 +46,17 @@ import numpy as np
 
 from medagentrx.engine import Evaluation, Verdict, evaluate, refused, statistical_findings
 from medagentrx.io.metadata import ModelMeta, load_model_meta
-from medagentrx.ledger import append, exclusive, load_history, signing_policy
+from medagentrx.ledger import (
+    append,
+    append_qc,
+    exclusive,
+    load_history,
+    read_entries,
+    signing_policy,
+)
 from medagentrx.plan import load_plan
 from medagentrx.plan.models import Modification
+from medagentrx.qc import QcRun, run_qc
 from medagentrx.slack import STATISTICAL_CHECKS, aggregate, aggregate_against, slacks
 from medagentrx.stats.alpha import next_alpha
 
@@ -222,6 +230,45 @@ class Guard:
                 answer={"mode": self.mode, "allowed": decision.allowed, "source": source},
             )
         return decision
+
+    def qc(
+        self,
+        scores: str | Path,
+        expected: str | Path,
+        *,
+        model_version: str,
+        control_inputs: str | Path | None = None,
+        now: dt.datetime | None = None,
+    ) -> QcRun:
+        """Run deployment QC on the live system and record it in the guard's ledger.
+
+        An agent that operates the deployment can check, on a schedule, that the
+        live stack still reproduces the released version's control scores. The
+        exact QC result is returned; QC runs never touch the locked test set, so
+        nothing about it needs hiding.
+
+        Args:
+            scores: Live scores on the plan's control set.
+            expected: Expected scores of ``model_version`` on the control set.
+            model_version: Version the live system reports it is running.
+            control_inputs: The raw control file, to check it against the plan.
+            now: Time of the run. Defaults to the current UTC time.
+        """
+        self.ledger.parent.mkdir(parents=True, exist_ok=True)
+        with exclusive(self.ledger):
+            public_key = self._key.public_key() if self._key is not None else None
+            load_history(self.ledger, public_key=public_key)
+            run = run_qc(
+                plan=self.plan_path,
+                scores=scores,
+                expected=expected,
+                model_version=model_version,
+                entries=read_entries(self.ledger),
+                control_inputs=control_inputs,
+                now=now,
+            )
+            append_qc(self.ledger, run, already_locked=True, signing_key=self._key)
+        return run
 
     def _answer(
         self,

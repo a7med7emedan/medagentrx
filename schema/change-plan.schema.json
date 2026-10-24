@@ -138,6 +138,104 @@
       "title": "DataManagement",
       "type": "object"
     },
+    "DeploymentQC": {
+      "additionalProperties": false,
+      "description": "Control samples for the live system, as in a clinical laboratory.\n\nA small locked set of raw input records is scored by the deployed stack on\na schedule. Each run is compared with the expected scores of the released\nversion. A shift with no listed modification behind it is an undeclared\nupdate.",
+      "properties": {
+        "control_inputs_sha256": {
+          "description": "SHA-256 of the raw control input file, taken before preprocessing. The file stays with the user; only this fingerprint is kept.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Control Inputs Sha256",
+          "type": "string"
+        },
+        "control_ids_fingerprint": {
+          "description": "Fingerprint of the control record ids, from `medagentrx qc init`.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Control Ids Fingerprint",
+          "type": "string"
+        },
+        "expected_scores": {
+          "additionalProperties": {
+            "description": "SHA-256 digest as 64 lowercase hex characters.",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "description": "SHA-256 of the expected score file of each released version on the control set.",
+          "minProperties": 1,
+          "propertyNames": {
+            "maxLength": 64,
+            "minLength": 1
+          },
+          "title": "Expected Scores",
+          "type": "object"
+        },
+        "tolerance": {
+          "$ref": "#/$defs/QcTolerance",
+          "description": "Per-record tolerance (LIVE-003)."
+        },
+        "rules": {
+          "description": "Multirule QC rules applied to the run bias (LIVE-004). 1_2s only warns; the others reject the run.",
+          "items": {
+            "enum": [
+              "1_2s",
+              "1_3s",
+              "2_2s",
+              "R_4s",
+              "10_x"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        },
+        "sd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Standard deviation of the run bias. When null it is estimated from the first baseline_runs QC runs of each version.",
+          "title": "Sd"
+        },
+        "baseline_runs": {
+          "default": 20,
+          "description": "Runs used to estimate the bias mean and SD when sd is null.",
+          "maximum": 1000,
+          "minimum": 5,
+          "title": "Baseline Runs",
+          "type": "integer"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How often the live system scores the control set. Documentation only.",
+          "title": "Schedule"
+        }
+      },
+      "required": [
+        "control_inputs_sha256",
+        "control_ids_fingerprint",
+        "expected_scores",
+        "tolerance"
+      ],
+      "title": "DeploymentQC",
+      "type": "object"
+    },
     "ImpactAssessment": {
       "additionalProperties": false,
       "description": "FDA third component: benefits and risks of the planned modifications.",
@@ -571,6 +669,24 @@
       "title": "Power",
       "type": "object"
     },
+    "QcTolerance": {
+      "additionalProperties": false,
+      "description": "How far a live control score may move from its expected score.",
+      "properties": {
+        "absolute": {
+          "description": "Largest allowed absolute difference between the live and the expected score of any control record, on the probability scale.",
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "title": "Absolute",
+          "type": "number"
+        }
+      },
+      "required": [
+        "absolute"
+      ],
+      "title": "QcTolerance",
+      "type": "object"
+    },
     "RegulatoryMap": {
       "additionalProperties": false,
       "description": "Informative cross-reference, rendered in the plan document.",
@@ -894,6 +1010,18 @@
       ],
       "default": null,
       "description": "Informative regulatory cross-reference."
+    },
+    "deployment_qc": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeploymentQC"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Control samples scored by the live system on a schedule (`medagentrx qc run`). Optional; plans without it are unchanged."
     }
   },
   "required": [

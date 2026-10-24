@@ -6,6 +6,7 @@ from medagentrx.checks import (  # noqa: F401
     data_checks,
     doc_checks,
     life_checks,
+    live_checks,
     perf_checks,
     plan_checks,
 )

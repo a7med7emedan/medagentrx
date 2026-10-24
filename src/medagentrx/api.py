@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
-"""Python API: check one update and record it, as ``medagentrx check`` does.
+"""Python API: check one update, or run deployment QC, and record it.
+
+``check`` does what ``medagentrx check`` does, and ``qc`` what ``medagentrx qc run`` does.
 
 from medagentrx import check, Verdict
 
@@ -21,8 +23,17 @@ from typing import Any
 from medagentrx.engine import Evaluation, Verdict, evaluate
 from medagentrx.errors import PlanError
 from medagentrx.io.limits import Limits
-from medagentrx.ledger import append, exclusive, load_history, read_entries, signing_policy
+from medagentrx.ledger import (
+    append,
+    append_qc,
+    exclusive,
+    load_history,
+    read_entries,
+    signing_policy,
+)
 from medagentrx.plan import load_plan
+from medagentrx.qc import QcRun, QcVerdict, run_qc
+from medagentrx.report.qc_report import write_qc_reports
 from medagentrx.report.writer import FORMATS, write_reports
 from medagentrx.stats.bootstrap import DEFAULT_REPLICATES
 
@@ -107,3 +118,77 @@ def check(
         Path(out), evaluation, formats=formats, entry=entry, entries=read_entries(ledger_path)
     )
     return CheckResult(evaluation=evaluation, ledger_entry=entry, reports=reports)
+
+
+@dataclass(frozen=True)
+class QcResult:
+    """Outcome of ``qc``.
+
+    Attributes:
+        run: Every finding and number behind the QC verdict.
+        ledger_entry: The QC entry written to the ledger.
+        reports: Written report files by format.
+    """
+
+    run: QcRun
+    ledger_entry: dict[str, Any]
+    reports: dict[str, Path] = field(default_factory=dict)
+
+    @property
+    def verdict(self) -> QcVerdict:
+        """IN_CONTROL or OUTSIDE_PLAN."""
+        return self.run.verdict
+
+    @property
+    def exit_code(self) -> int:
+        """0 IN_CONTROL, 2 OUTSIDE_PLAN."""
+        return int(self.run.exit_code)
+
+
+def qc(
+    *,
+    plan: str | Path,
+    scores: str | Path,
+    expected: str | Path,
+    model_version: str,
+    ledger: str | Path,
+    out: str | Path,
+    control_inputs: str | Path | None = None,
+    formats: Iterable[str] = tuple(FORMATS),
+    limits: Limits | None = None,
+    signing_key: str | Path | None = None,
+) -> QcResult:
+    """Run deployment QC on the live system's control scores, record it and write reports.
+
+    The live system scores the plan's locked control set; ``scores`` is that
+    file and ``expected`` the expected scores of ``model_version``. The run
+    history and the released version are read from the ledger, which is locked
+    until the QC entry is written.
+
+    Raises:
+        PlanError: If the plan is invalid.
+        InputError: If the plan has no QC block or an input file is invalid.
+        LedgerError: If the ledger fails verification.
+    """
+    ledger_path = Path(ledger)
+    change_plan = load_plan(plan)
+    key = signing_policy(change_plan, Path(signing_key) if signing_key is not None else None)
+    public_key = key.public_key() if key is not None else None
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    with exclusive(ledger_path):
+        load_history(ledger_path, public_key=public_key)
+        entries = read_entries(ledger_path) if ledger_path.exists() else []
+        run = run_qc(
+            plan=plan,
+            scores=scores,
+            expected=expected,
+            model_version=model_version,
+            entries=entries,
+            control_inputs=control_inputs,
+            limits=limits,
+        )
+        entry = append_qc(ledger_path, run, already_locked=True, signing_key=key)
+    reports = write_qc_reports(
+        Path(out), run, formats=formats, entry=entry, entries=read_entries(ledger_path)
+    )
+    return QcResult(run=run, ledger_entry=entry, reports=reports)

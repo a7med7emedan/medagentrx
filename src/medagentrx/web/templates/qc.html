@@ -1,0 +1,25 @@
+{# SPDX-FileCopyrightText: 2026 Ahmed Hemedan #}
+{# SPDX-License-Identifier: Apache-2.0 #}
+{% extends "base.html" %}
+{% block title %}Deployment QC, MedAgentRx{% endblock %}
+{% block content %}
+<h1>Deployment QC</h1>
+<p>The live system scores a locked set of control records on a schedule. Each run is compared with the expected scores of the released version.</p>
+{% for version, figure in charts %}
+<h2>Version {{ version }}</h2>
+<figure aria-label="{{ figure.alt }}">{{ figure.svg | safe }}<figcaption>{{ figure.alt }}</figcaption></figure>
+{% else %}
+<p>No QC run has been recorded yet. Run <code>medagentrx qc run</code> on a schedule.</p>
+{% endfor %}
+{% if runs %}
+<h2>Latest runs</h2>
+<table>
+  <thead><tr><th>Entry</th><th>Recorded</th><th>Version</th><th>Verdict</th><th>Failed checks</th></tr></thead>
+  <tbody>
+  {% for e in runs %}
+    <tr><td><a href="/versions/{{ e.seq }}">{{ e.seq }}</a></td><td>{{ e.recorded_at[:19] }}</td><td>{{ e.model_version }}</td><td>{{ e.verdict }}</td><td>{{ e.failed_checks | join(", ") or "none" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -9,4 +9,15 @@
 {% else %}
 <p>No formal evaluation has measured AUROC yet.</p>
 {% endif %}
+{% if rows %}
+<h2>Updates and QC runs</h2>
+<table>
+  <thead><tr><th>Entry</th><th>Recorded</th><th>Type</th><th>Version</th><th>Verdict</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td><a href="/versions/{{ r.seq }}">{{ r.seq }}</a></td><td>{{ r.recorded_at }}</td><td>{{ r.type }}</td><td>{{ r.version }}</td><td>{{ r.verdict }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% endblock %}

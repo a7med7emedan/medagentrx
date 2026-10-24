@@ -114,6 +114,17 @@ For two models with the same expected AUROC and correlation `r` between the esti
 - **Categorical features:** the multivariate definition of Yang and Dalton (2012), over level proportions without the first level.
 - An absolute value above 0.1 gives a warning.
 
+## Deployment QC
+
+A [deployment QC](qc.md) run compares the live system's scores `l_i` on the `n` locked control records with the released version's expected scores `e_i`.
+
+- **Per-record tolerance (LIVE-003).** The run passes when `max |l_i - e_i| <= tolerance`.
+- **Run bias.** `b = mean(l_i - e_i)`, one number per run.
+- **Target and SD.** When the plan gives `sd`, the target is `m = 0`. Otherwise `m` and `sd` are the mean and sample SD of the bias over the first `baseline_runs` in-control runs of the version. The SD is never smaller than `tolerance / (3 sqrt(n))`, the SD the bias would have if every record varied independently with an SD of a third of the tolerance.
+- **Multirule (LIVE-004).** Each run is standardised as `z = (b - m) / sd` and the rules of Westgard et al. (1981) are applied across runs: 1_2s warns when `|z| > 2`; 1_3s rejects when `|z| > 3`; 2_2s rejects when the latest two runs are both above 2 or both below -2; R_4s rejects when one of them is above 2 and the other below -2; 10_x rejects when the latest ten runs are all above or all below zero. Comparisons are strict. Rejected runs never join the baseline or later windows.
+
+[Validation results](validation.md#deployment-qc) report the false alarm rate and the detection of shifts.
+
 ## References
 
 - DeLong E.R., DeLong D.M., Clarke-Pearson D.L. Comparing the areas under two or more correlated receiver operating characteristic curves: a nonparametric approach. Biometrics 1988;44:837 to 845.
@@ -127,3 +138,4 @@ For two models with the same expected AUROC and correlation `r` between the esti
 - Hanley J.A., McNeil B.J. The meaning and use of the area under a receiver operating characteristic (ROC) curve. Radiology 1982;143:29 to 36.
 - Yang D., Dalton J.E. A unified approach to measuring the effect size between two groups using SAS. SAS Global Forum 2012, paper 335.
 - Robin X. et al. pROC: an open-source package for R and S+ to analyze and compare ROC curves. BMC Bioinformatics 2011;12:77.
+- Westgard J.O., Barry P.L., Hunt M.R., Groth T. A multi-rule Shewhart chart for quality control in clinical chemistry. Clinical Chemistry 1981;27:493 to 501.

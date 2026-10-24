@@ -29,7 +29,7 @@ import time
 from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
@@ -40,12 +40,16 @@ from medagentrx.plan.models import ChangePlan
 from medagentrx.signing import key_fingerprint, load_private_key, sign_head, verify_head
 from medagentrx.stats.alpha import AlphaState
 
+if TYPE_CHECKING:
+    from medagentrx.qc import QcRun
+
 LEDGER_FORMAT = 1
-ENTRY_KINDS = ("evaluation", "guard", "release", "card")
+ENTRY_KINDS = ("evaluation", "guard", "release", "card", "qc")
 """``evaluation``: a formal check, which spends alpha and may accept an update.
 ``guard``: an agent's look through the guard, which spends a test-set look only.
 ``release``: an accepted version put into service.
-``card``: the model card updated for an accepted version."""
+``card``: the model card updated for an accepted version.
+``qc``: a deployment QC run of the live system; it never touches the test set."""
 RECORD_KINDS = ("release", "card")
 """Kinds that record what happened to an accepted version, not an evaluation."""
 GENESIS = "0" * 64
@@ -462,6 +466,59 @@ def _append_unlocked(
         answer=answer,
     )
     _write_entry(path, head_file, entry, signing_key)
+    return entry
+
+
+def build_qc_entry(run: QcRun, *, seq: int, prev_hash: str) -> dict[str, Any]:
+    """Ledger entry for a deployment QC run, with its hash."""
+    data = run.to_dict()
+    body: dict[str, Any] = {
+        "format": LEDGER_FORMAT,
+        "seq": seq,
+        "prev_hash": prev_hash,
+        "kind": "qc",
+        "recorded_at": run.run_at.isoformat(),
+        "plan": data["plan"],
+        "model_version": run.model_version,
+        "verdict": run.verdict.value,
+        "failed_checks": run.failed_checks,
+        "warnings": [f.check_id for f in run.findings if f.status.value == "warn"],
+        "touched_test_set": False,
+        "qc": data["qc"],
+        "inputs": dict(run.inputs),
+        "tool_version": run.tool_version,
+    }
+    body["hash"] = entry_hash(body)
+    return body
+
+
+def append_qc(
+    path: Path,
+    run: QcRun,
+    *,
+    head_path: Path | None = None,
+    already_locked: bool = False,
+    signing_key: Ed25519PrivateKey | None = None,
+) -> dict[str, Any]:
+    """Verify the ledger, then append a QC run and update the head.
+
+    Raises:
+        LedgerError: If the ledger fails verification, changed after the run read
+            its history, or the time runs backwards.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    head_file = head_path or head_path_for(path)
+    lock = contextlib.nullcontext() if already_locked else exclusive(path)
+    with lock:
+        result = _verified_for_append(path, head_file, signing_key)
+        if run.ledger_entries_before != result.entries:
+            raise LedgerError(
+                f"{path}: the ledger has {result.entries} entries but the QC run read "
+                f"{run.ledger_entries_before}; run it again with the current history"
+            )
+        _check_clock(read_entries(path), run.run_at)
+        entry = build_qc_entry(run, seq=result.entries, prev_hash=result.head)
+        _write_entry(path, head_file, entry, signing_key)
     return entry
 
 

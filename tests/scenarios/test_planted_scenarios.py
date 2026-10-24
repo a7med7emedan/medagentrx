@@ -12,13 +12,22 @@ from typer.testing import CliRunner
 
 from medagentrx import load_plan
 from medagentrx.cli import app
-from medagentrx.demo import SCENARIOS, ScenarioResult, run_all
+from medagentrx.demo import (
+    QC_SCENARIOS,
+    SCENARIOS,
+    QcScenarioResult,
+    ScenarioResult,
+    run_all,
+    run_all_qc,
+)
 from medagentrx.demo.cohort import make_cohort, sigma_for_auc
 from medagentrx.demo.plan import demo_plan
+from medagentrx.demo.qc_scenarios import QC_BASELINE
 from medagentrx.demo.scenarios import INTENDED_USE_SHA256, locked_fingerprint
 from medagentrx.engine import Evaluation
-from medagentrx.io.fingerprint import fingerprint_file
-from medagentrx.io.predictions import load_predictions
+from medagentrx.io.fingerprint import fingerprint_file, id_fingerprint
+from medagentrx.io.hashing import sha256_file
+from medagentrx.io.predictions import load_predictions, load_row_ids
 from medagentrx.ledger import load_history, verify
 from medagentrx.plan.models import ChangePlan
 from tests.conftest import EXAMPLE_DIR, EXAMPLE_PLAN
@@ -147,7 +156,17 @@ def test_example_matches_the_demo() -> None:
             test_set_sha256=locked_fingerprint(cohort), intended_use_sha256=INTENDED_USE_SHA256
         )
     )
-    assert load_plan(EXAMPLE_PLAN) == expected
+    example = load_plan(EXAMPLE_PLAN)
+    assert example.model_copy(update={"deployment_qc": None}) == expected
+    qc = example.deployment_qc
+    assert qc is not None
+    folder = EXAMPLE_DIR / "qc"
+    assert qc.control_inputs_sha256 == sha256_file(folder / "control_inputs.parquet")
+    assert qc.expected_scores == {"2.0.0": sha256_file(folder / "expected-2.0.0.parquet")}
+    ids = load_row_ids(folder / "control_inputs.parquet")
+    assert qc.control_ids_fingerprint == id_fingerprint(ids)
+    assert not set(ids) & set(load_row_ids(EXAMPLE_DIR / "candidate.parquet"))
+    assert not set(ids) & set(load_row_ids(EXAMPLE_DIR / "train_manifest.parquet"))
     assert fingerprint_file(EXAMPLE_DIR / "candidate.parquet") == locked_fingerprint(cohort)
     shipped = load_predictions(EXAMPLE_DIR / "candidate.parquet")
     assert shipped.n == 20_000
@@ -187,3 +206,73 @@ def test_demo_command_reports_mismatch(tmp_path: Path, monkeypatch: pytest.Monke
     )
     assert result.exit_code == 1
     assert " NO" in result.output
+
+
+# Deployment QC scenarios ---------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def qc_results(tmp_path_factory: pytest.TempPathFactory) -> dict[str, QcScenarioResult]:
+    out = tmp_path_factory.mktemp("qc-demo")
+    return {r.scenario.name: r for r in run_all_qc(out)}
+
+
+def test_qc_scenarios_are_present() -> None:
+    assert list(QC_SCENARIOS) == [
+        "qc-clean",
+        "qc-dependency-change",
+        "qc-preprocessing-change",
+        "qc-outlier-run",
+        "qc-slow-drift",
+        "qc-unreleased-version",
+        "qc-wrong-ids",
+        "qc-malformed",
+    ]
+
+
+@pytest.mark.parametrize("name", list(QC_SCENARIOS))
+def test_qc_scenario_gives_its_exact_verdict(
+    qc_results: dict[str, QcScenarioResult], name: str
+) -> None:
+    result = qc_results[name]
+    assert len(result.steps) == len(result.scenario.steps)
+    for step in result.steps:
+        assert step.ok, (name, step.verdict, step.failed, step.warnings)
+    ledger = result.directory / "ledger.jsonl"
+    assert verify(ledger).ok
+    assert load_history(ledger).looks_used == 0
+
+
+def test_qc_scenario_numbers(qc_results: dict[str, QcScenarioResult]) -> None:
+    shift = qc_results["qc-dependency-change"].steps[-1]
+    assert shift.run is not None
+    assert shift.run.finding("LIVE-003").status.value == "pass"
+    assert shift.run.rejections[0] == "1_3s"
+    drift = qc_results["qc-slow-drift"].steps
+    last = drift[-1].run
+    assert last is not None
+    assert last.rejections == ("10_x",)
+    assert all(abs(s.run.z) < 2 for s in drift[QC_BASELINE:] if s.run and s.run.z is not None)
+    outlier = qc_results["qc-outlier-run"].steps[-1].run
+    assert outlier is not None
+    assert outlier.z is not None
+    assert 2.0 < outlier.z < 3.0
+
+
+def test_demo_command_runs_qc_scenarios(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "demo",
+            "--out",
+            str(tmp_path),
+            "--scenario",
+            "qc-wrong-ids",
+            "--scenario",
+            "qc-outlier-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "2 of 2 scenarios gave their expected verdict" in result.output
+    assert "warn LIVE-004" in result.output
+    assert (tmp_path / "qc-outlier-run" / "report" / "report.html").exists()

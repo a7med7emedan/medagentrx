@@ -31,9 +31,9 @@ MAX_REPORT_BYTES = 50_000_000
 
 
 @cache
-def report_schema() -> dict[str, Any]:
-    """The published JSON Schema of ``report.json``."""
-    text = (resources.files("medagentrx.report") / "report.schema.json").read_text(encoding="utf-8")
+def report_schema(name: str = "report.schema.json") -> dict[str, Any]:
+    """A published JSON Schema: ``report.schema.json`` or ``qc-report.schema.json``."""
+    text = (resources.files("medagentrx.report") / name).read_text(encoding="utf-8")
     schema: dict[str, Any] = json.loads(text)
     return schema
 
@@ -43,21 +43,35 @@ def _reject_constant(name: str) -> None:
 
 
 def load_report(path: str | Path) -> dict[str, Any]:
-    """Read and validate a ``report.json``.
+    """Read and validate the ``report.json`` of an update check.
 
     Raises:
         InputError: If the file is unsafe, not JSON, or does not match the schema.
     """
+    return _load_json_report(path, "report.schema.json", "a MedAgentRx report")
+
+
+def load_qc_report(path: str | Path) -> dict[str, Any]:
+    """Read and validate the ``report.json`` of a deployment QC run.
+
+    Raises:
+        InputError: If the file is unsafe, not JSON, or does not match the schema.
+    """
+    return _load_json_report(path, "qc-report.schema.json", "a MedAgentRx QC report")
+
+
+def _load_json_report(path: str | Path, schema_name: str, what: str) -> dict[str, Any]:
     real = resolve_input(path)
     text = read_text_limited(real, max_bytes=MAX_REPORT_BYTES)
     try:
         data = json.loads(text, parse_constant=_reject_constant)
     except (json.JSONDecodeError, ValueError) as exc:
         raise InputError(f"{path}: not valid JSON ({exc})") from None
-    errors = sorted(jsonschema.Draft202012Validator(report_schema()).iter_errors(data), key=str)
+    validator = jsonschema.Draft202012Validator(report_schema(schema_name))
+    errors = sorted(validator.iter_errors(data), key=str)
     if errors:
         raise InputError(
-            f"{path}: not a MedAgentRx report",
+            f"{path}: not {what}",
             [
                 f"{'.'.join(map(str, e.absolute_path)) or '<root>'}: {e.message}"
                 for e in errors[:10]

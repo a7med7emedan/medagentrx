@@ -28,6 +28,7 @@ An approved change plan (FDA PCCP, EU AI Act Art. 43(4)). Every model update is 
 | `update_procedures` | UpdateProcedures | yes | Modification Protocol, update procedures. |
 | `impact_assessment` | ImpactAssessment | yes | FDA Impact Assessment. |
 | `regulatory_map` | RegulatoryMap or null | no | Informative regulatory cross-reference. |
+| `deployment_qc` | DeploymentQC or null | no | Control samples scored by the live system on a schedule (`medagentrx qc run`). Optional; plans without it are unchanged. |
 
 ## AllCondition
 
@@ -63,6 +64,21 @@ FDA Modification Protocol, element 1: data management.
 | `training_inclusion` | LeafCondition or AllCondition or AnyCondition or NotCondition | yes | Condition every row of the training manifest must meet. |
 | `locked_test_set` | LockedTestSet | yes | The locked test set. |
 | `forbid_overlap_on` | list of string | yes | Keys that must never be shared by training and test rows. |
+
+## DeploymentQC
+
+Control samples for the live system, as in a clinical laboratory.  A small locked set of raw input records is scored by the deployed stack on a schedule. Each run is compared with the expected scores of the released version. A shift with no listed modification behind it is an undeclared update.
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `control_inputs_sha256` | string (pattern `^[0-9a-f]{64}$`) | yes | SHA-256 of the raw control input file, taken before preprocessing. The file stays with the user; only this fingerprint is kept. |
+| `control_ids_fingerprint` | string (pattern `^[0-9a-f]{64}$`) | yes | Fingerprint of the control record ids, from `medagentrx qc init`. |
+| `expected_scores` | object | yes | SHA-256 of the expected score file of each released version on the control set. |
+| `tolerance` | QcTolerance | yes | Per-record tolerance (LIVE-003). |
+| `rules` | list of `1_2s` or `1_3s` or `2_2s` or `R_4s` or `10_x` | no | Multirule QC rules applied to the run bias (LIVE-004). 1_2s only warns; the others reject the run. |
+| `sd` | number (> 0.0) or null | no | Standard deviation of the run bias. When null it is estimated from the first baseline_runs QC runs of each version. |
+| `baseline_runs` | integer (>= 5, <= 1000) | no | Runs used to estimate the bias mean and SD when sd is null. |
+| `schedule` | string or null | no | How often the live system scores the control set. Documentation only. |
 
 ## ImpactAssessment
 
@@ -157,6 +173,14 @@ Power requirement for the locked test set.
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `min_power` | number (> 0.0, < 1.0) | yes | Warn when power to detect the margin is lower. |
+
+## QcTolerance
+
+How far a live control score may move from its expected score.
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `absolute` | number (> 0.0, <= 1.0) | yes | Largest allowed absolute difference between the live and the expected score of any control record, on the probability scale. |
 
 ## RegulatoryMap
 

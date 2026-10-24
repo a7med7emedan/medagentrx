@@ -15,7 +15,9 @@ def render_junit(report: dict[str, Any]) -> str:
     failures = sum(c["status"] == "fail" for c in checks)
     skipped = sum(c["status"] in ("skipped", "not_applicable") for c in checks)
     plan_id = report["plan"]["id"] or "invalid plan"
-    suite_name = f"medagentrx {plan_id} {report['candidate_version'] or ''}".strip()
+    version = report.get("candidate_version") or report.get("model_version") or ""
+    prefix = "medagentrx qc" if report.get("kind") == "qc" else "medagentrx"
+    suite_name = f"{prefix} {plan_id} {version}".strip()
     suites = ET.Element(
         "testsuites", name="medagentrx", tests=str(len(checks)), failures=str(failures)
     )
@@ -27,7 +29,7 @@ def render_junit(report: dict[str, Any]) -> str:
         failures=str(failures),
         errors="0",
         skipped=str(skipped),
-        timestamp=report["evaluated_at"],
+        timestamp=report.get("evaluated_at") or report["run_at"],
     )
     properties = ET.SubElement(suite, "properties")
     for name, value in (("verdict", report["verdict"]), ("tool_version", report["tool_version"])):

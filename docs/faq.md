@@ -20,6 +20,9 @@ A series of updates, each only slightly worse than the one before, can drift a l
 **Can an agent use MedAgentRx directly?**
 Yes. The [guard](agents.md) lets an agent try only the modifications the plan marks automatic and spends a look per try. In thresholdout mode it answers with one noisy bit for the whole plan, and with the agent's own validation data it runs Thresholdout.
 
+**Does MedAgentRx notice dependency, runtime or preprocessing changes?**
+Yes, with [deployment QC](qc.md). Such a change can move a model's scores without changing its weights, so update checks alone would miss it. The live system scores a locked set of raw control records on a schedule, and every run is compared with the released version's expected scores. Gross changes fail the per-record tolerance (LIVE-003); small systematic ones fail the multirule rules (LIVE-004). A version running live that was never released fails LIVE-001.
+
 **Is the output a regulatory submission?**
 No. MedAgentRx supports a quality management system. Its reports are evidence for that system, not a submission.
 

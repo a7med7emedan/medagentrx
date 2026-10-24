@@ -377,6 +377,85 @@ class RegulatoryMap(StrictModel):
     eu: list[Text] = Field(default_factory=list, description="EU references.")
 
 
+# Deployment QC: control samples ---------------------------------------------------------
+
+QcRule = Literal["1_2s", "1_3s", "2_2s", "R_4s", "10_x"]
+QC_RULES: tuple[QcRule, ...] = ("1_2s", "1_3s", "2_2s", "R_4s", "10_x")
+VersionName = Annotated[str, Field(min_length=1, max_length=64)]
+
+
+class QcTolerance(StrictModel):
+    """How far a live control score may move from its expected score."""
+
+    absolute: float = Field(
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Largest allowed absolute difference between the live and the expected score of "
+            "any control record, on the probability scale."
+        ),
+    )
+
+
+class DeploymentQC(StrictModel):
+    """Control samples for the live system, as in a clinical laboratory.
+
+    A small locked set of raw input records is scored by the deployed stack on
+    a schedule. Each run is compared with the expected scores of the released
+    version. A shift with no listed modification behind it is an undeclared
+    update.
+    """
+
+    control_inputs_sha256: Sha256 = Field(
+        description=(
+            "SHA-256 of the raw control input file, taken before preprocessing. The file "
+            "stays with the user; only this fingerprint is kept."
+        )
+    )
+    control_ids_fingerprint: Sha256 = Field(
+        description="Fingerprint of the control record ids, from `medagentrx qc init`."
+    )
+    expected_scores: dict[VersionName, Sha256] = Field(
+        min_length=1,
+        description=(
+            "SHA-256 of the expected score file of each released version on the control set."
+        ),
+    )
+    tolerance: QcTolerance = Field(description="Per-record tolerance (LIVE-003).")
+    rules: list[QcRule] = Field(
+        default_factory=lambda: list(QC_RULES),
+        min_length=1,
+        description=(
+            "Multirule QC rules applied to the run bias (LIVE-004). 1_2s only warns; the "
+            "others reject the run."
+        ),
+    )
+    sd: float | None = Field(
+        default=None,
+        gt=0.0,
+        description=(
+            "Standard deviation of the run bias. When null it is estimated from the first "
+            "baseline_runs QC runs of each version."
+        ),
+    )
+    baseline_runs: int = Field(
+        default=20,
+        ge=5,
+        le=1000,
+        description="Runs used to estimate the bias mean and SD when sd is null.",
+    )
+    schedule: Text | None = Field(
+        default=None,
+        description="How often the live system scores the control set. Documentation only.",
+    )
+
+    @model_validator(mode="after")
+    def _unique_rules(self) -> DeploymentQC:
+        if len(set(self.rules)) != len(self.rules):
+            raise ValueError("rules must not repeat")
+        return self
+
+
 # The plan -------------------------------------------------------------------------------
 
 
@@ -428,6 +507,13 @@ class ChangePlan(StrictModel):
     impact_assessment: ImpactAssessment = Field(description="FDA Impact Assessment.")
     regulatory_map: RegulatoryMap | None = Field(
         default=None, description="Informative regulatory cross-reference."
+    )
+    deployment_qc: DeploymentQC | None = Field(
+        default=None,
+        description=(
+            "Control samples scored by the live system on a schedule (`medagentrx qc run`). "
+            "Optional; plans without it are unchanged."
+        ),
     )
 
 

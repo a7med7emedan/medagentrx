@@ -30,6 +30,7 @@ MedAgentRx reads files that people and agents control, and its verdict decides w
 | Clock set back to slip past the frequency limit | Tampering | Entries must not run backwards in time; `check` refuses an earlier time and `verify` reports one | `ledger.py` |
 | An agent fits the locked test set by trying many candidates | Information disclosure | Look budget counts every try; thresholdout mode returns one noisy bit; only automatic modifications allowed | `guard.py` |
 | Changed test labels or a different test set | Tampering | Canonical test-set fingerprint pinned in the plan (DATA-001) | `io/fingerprint.py` |
+| Live stack changed without a declared update (library, runtime, hardware, preprocessing, or an unreleased version) | Tampering | Deployment QC: control records scored by the live system on a schedule, checked by version, binding, per-record tolerance and multirule QC (LIVE-001 to LIVE-004) | `qc.py`, `checks/live_checks.py` |
 | Plan changed without a new revision | Tampering, repudiation | Plan fingerprint recorded in the ledger and compared (PLAN-001) | `checks/plan_checks.py` |
 | Dashboard exposed to a network | Information disclosure | Read-only GET routes, no cookies, strict security headers; binds to 127.0.0.1 and warns loudly otherwise | `web/` |
 | Compromised dependency or image | Tampering | Locked dependencies; pip-audit, CodeQL, Trivy and OpenSSF Scorecard in CI; base images pinned by digest; image signed and shipped with an SBOM and provenance | CI, `Dockerfile` |
@@ -42,3 +43,4 @@ MedAgentRx reads files that people and agents control, and its verdict decides w
 - Whoever holds the signing key can sign a rewritten head. Keep the key with a party that does not train or submit models, such as a protected CI secret.
 - The tool trusts that prediction files come from the models they claim to. Model provenance is the quality system's job.
 - In thresholdout mode each look still leaks a little information. The look budget bounds the total.
+- Deployment QC trusts that the live score file came from the live system. A scheduler that replays an old score file would hide a change. Run the QC job where the people who change the deployment cannot alter its output, and compare the score file's SHA-256 across runs: a noisy stack never produces the same file twice.

@@ -9,7 +9,6 @@ CI also runs the Action itself with Docker.
 
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -141,6 +140,7 @@ def test_action_check_step(tmp_path: Path, mutate: str | None, verdict: str, cod
     assert (workspace / "ledger" / "ledger.jsonl").exists()
 
 
+@posix_only
 def test_gitlab_component(tmp_path: Path) -> None:
     spec, jobs = list(
         yaml.safe_load_all((REPO_ROOT / "templates" / "medagentrx.yml").read_text(encoding="utf-8"))
@@ -160,11 +160,15 @@ def test_gitlab_component(tmp_path: Path) -> None:
         r"\$\[\[ inputs\.([a-z-]+) \]\]", lambda m: str(values[m.group(1)]), job["script"][0]
     )
     workspace = _workspace(tmp_path)
-    args = shlex.split(script)
-    assert args[:2] == ["medagentrx", "check"]
+    assert 'medagentrx "$@"' in script
     medagentrx = shutil.which("medagentrx")
     assert medagentrx is not None
-    result = subprocess.run([medagentrx, *args[1:]], cwd=workspace, capture_output=True, text=True)  # noqa: S603
+    sh = shutil.which("sh")
+    assert sh is not None
+    env = {**os.environ, "PATH": f"{Path(medagentrx).parent}{os.pathsep}{os.environ['PATH']}"}
+    result = subprocess.run(  # noqa: S603
+        [sh, "-e", "-c", script], cwd=workspace, capture_output=True, text=True, env=env
+    )
     assert result.returncode == 0, result.stderr
     assert (workspace / "medagentrx-report" / "junit.xml").exists()
 
@@ -233,3 +237,115 @@ def test_every_workflow_action_and_image_is_pinned() -> None:
     for image in re.findall(r"(?:ghcr\.io|docker)[\w./:-]*@sha256:[0-9a-f]+|image: (\S+)", gitlab):
         if image and not image.startswith("$") and "uv:python" not in image:
             assert "@sha256:" in image, image
+
+
+QC_FILES = {
+    "plan": "examples/sepsis-risk/change-plan.yaml",
+    "scores": "examples/sepsis-risk/qc/live-scores.parquet",
+    "expected": "examples/sepsis-risk/qc/expected-2.0.0.parquet",
+    "control-inputs": "examples/sepsis-risk/qc/control_inputs.parquet",
+}
+
+
+def _qc_workspace(tmp_path: Path) -> Path:
+    workspace = _workspace(tmp_path)
+    for relative in QC_FILES.values():
+        target = workspace / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / relative, target)
+    return workspace
+
+
+def _docker_shim(tmp_path: Path) -> Path:
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    medagentrx = shutil.which("medagentrx")
+    assert medagentrx is not None
+    (shim / "docker").write_text(
+        "#!/usr/bin/env bash\n"
+        "shift\n"
+        'while [ $# -gt 0 ]; do case "$1" in\n'
+        "  --rm|--read-only) shift ;;\n"
+        "  --tmpfs|--network|--user|--volume|--workdir) shift 2 ;;\n"
+        "  *) shift; break ;;\n"
+        "esac; done\n"
+        f'exec "{medagentrx}" "$@"\n'
+    )
+    (shim / "docker").chmod(0o755)
+    return shim
+
+
+def test_action_has_a_qc_mode() -> None:
+    action = _action()
+    assert action["inputs"]["mode"]["default"] == "check"
+    assert {"scores", "expected", "model-version", "control-inputs"} <= set(action["inputs"])
+    for name in ("candidate", "previous", "anchor", "manifest", "model-meta"):
+        assert action["inputs"][name]["default"] == ""
+
+
+@posix_only
+@pytest.mark.parametrize(
+    ("version", "verdict", "code"), [("2.0.0", "IN_CONTROL", 0), ("2.1.0", "OUTSIDE_PLAN", 2)]
+)
+def test_action_qc_step(tmp_path: Path, version: str, verdict: str, code: int) -> None:
+    workspace = _qc_workspace(tmp_path)
+    step = next(s for s in _action()["runs"]["steps"] if s.get("id") == "check")
+    outputs, summary = tmp_path / "out.txt", tmp_path / "summary.md"
+    env = {
+        **os.environ,
+        "PATH": f"{_docker_shim(tmp_path)}{os.pathsep}{os.environ['PATH']}",
+        "GITHUB_WORKSPACE": str(workspace),
+        "GITHUB_OUTPUT": str(outputs),
+        "GITHUB_STEP_SUMMARY": str(summary),
+        "MEDAGENTRX_IMAGE": "",
+        "MODE": "qc",
+        "PLAN": QC_FILES["plan"],
+        "SCORES": QC_FILES["scores"],
+        "EXPECTED": QC_FILES["expected"],
+        "MODEL_VERSION": version,
+        "CONTROL_INPUTS": QC_FILES["control-inputs"],
+        "LEDGER": "ledger/ledger.jsonl",
+        "OUT": "medagentrx-report",
+        "FORMAT": "html,json,md,junit",
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    subprocess.run([bash, "-e", "-c", step["run"]], cwd=workspace, env=env, check=True)  # noqa: S603
+    assert f"verdict={verdict}" in outputs.read_text()
+    assert f"exit-code={code}" in outputs.read_text()
+    assert summary.read_text().startswith("## MedAgentRx QC:")
+    bad = {**env, "MODE": "audit"}
+    failed = subprocess.run([bash, "-e", "-c", step["run"]], cwd=workspace, env=bad, check=False)  # noqa: S603
+    assert failed.returncode == 3
+
+
+@posix_only
+def test_gitlab_component_qc_mode(tmp_path: Path) -> None:
+    spec, jobs = list(
+        yaml.safe_load_all((REPO_ROOT / "templates" / "medagentrx.yml").read_text(encoding="utf-8"))
+    )
+    inputs = spec["spec"]["inputs"]
+    assert inputs["mode"]["options"] == ["check", "qc"]
+    values = {
+        **{k: v["default"] for k, v in inputs.items() if "default" in v},
+        **QC_FILES,
+        "mode": "qc",
+        "model-version": "2.0.0",
+        "image": "unused",
+        "ledger": "ledger/ledger.jsonl",
+    }
+    (job,) = jobs.values()
+    script = re.sub(
+        r"\$\[\[ inputs\.([a-z-]+) \]\]", lambda m: str(values[m.group(1)]), job["script"][0]
+    )
+    workspace = _qc_workspace(tmp_path)
+    medagentrx = shutil.which("medagentrx")
+    sh = shutil.which("sh")
+    assert medagentrx is not None
+    assert sh is not None
+    env = {**os.environ, "PATH": f"{Path(medagentrx).parent}{os.pathsep}{os.environ['PATH']}"}
+    result = subprocess.run(  # noqa: S603
+        [sh, "-e", "-c", script], cwd=workspace, capture_output=True, text=True, env=env
+    )
+    assert result.returncode == 0, result.stderr
+    assert "qc verdict: IN_CONTROL" in result.stdout

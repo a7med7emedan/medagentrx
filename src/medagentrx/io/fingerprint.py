@@ -33,6 +33,19 @@ def fingerprint_rows(row_ids: Sequence[str], labels: Sequence[int]) -> str:
     return digest.hexdigest()
 
 
+def id_fingerprint(row_ids: Sequence[str]) -> str:
+    """Canonical fingerprint of a set of row ids, such as the QC control set.
+
+    Ids are sorted in code point order and each is followed by a line feed;
+    the SHA-256 of the UTF-8 text is returned. Row order does not matter; any
+    added, removed or renamed id changes it.
+    """
+    digest = hashlib.sha256()
+    for row_id in sorted(row_ids):
+        digest.update(f"{row_id}\n".encode())
+    return digest.hexdigest()
+
+
 def test_set_fingerprint(predictions: Predictions) -> str:
     """Return the canonical fingerprint of the rows and labels in ``predictions``."""
     return fingerprint_rows(predictions.row_id.tolist(), predictions.y_true.tolist())

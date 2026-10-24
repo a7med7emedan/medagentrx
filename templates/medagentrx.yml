@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Ahmed Hemedan
 # SPDX-License-Identifier: Apache-2.0
 #
-# GitLab CI/CD component: check a model update against its approved change plan.
+# GitLab CI/CD component: check a model update against its approved change plan,
+# or, with mode qc, judge a deployment QC run of the live system.
 #
 # include:
 #   - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@<version>
@@ -21,18 +22,39 @@ spec:
       default: medagentrx-check
     image:
       description: MedAgentRx container image, pinned by digest.
+    mode:
+      description: check judges a model update; qc judges a deployment QC run.
+      options: [check, qc]
+      default: check
     plan:
       description: Path to change-plan.yaml.
     candidate:
-      description: Candidate predictions on the locked test set (Parquet or CSV).
+      description: Candidate predictions on the locked test set (Parquet or CSV). Mode check.
+      default: ""
     previous:
-      description: Predictions of the version being replaced.
+      description: Predictions of the version being replaced. Mode check.
+      default: ""
     anchor:
-      description: Predictions of the originally authorised version.
+      description: Predictions of the originally authorised version. Mode check.
+      default: ""
     manifest:
-      description: Training data manifest of the candidate.
+      description: Training data manifest of the candidate. Mode check.
+      default: ""
     model-meta:
-      description: model.yaml of the candidate.
+      description: model.yaml of the candidate. Mode check.
+      default: ""
+    scores:
+      description: Live system's scores on the control set. Mode qc.
+      default: ""
+    expected:
+      description: Expected scores of the model version on the control set. Mode qc.
+      default: ""
+    model-version:
+      description: Version the live system reports it is running. Mode qc.
+      default: ""
+    control-inputs:
+      description: Raw control file, checked against the plan when given. Mode qc.
+      default: ""
     ledger:
       description: Decision ledger. It must persist between pipelines.
     out:
@@ -55,17 +77,20 @@ spec:
   variables:
     MPLCONFIGDIR: /tmp/matplotlib
   script:
-    - >-
-      medagentrx check "$[[ inputs.plan ]]"
-      --candidate "$[[ inputs.candidate ]]"
-      --previous "$[[ inputs.previous ]]"
-      --anchor "$[[ inputs.anchor ]]"
-      --manifest "$[[ inputs.manifest ]]"
-      --model-meta "$[[ inputs.model-meta ]]"
-      --ledger "$[[ inputs.ledger ]]"
-      --out "$[[ inputs.out ]]"
-      --seed $[[ inputs.seed ]]
-      --replicates $[[ inputs.replicates ]]
+    - |
+      if [ "$[[ inputs.mode ]]" = "qc" ]; then
+        set -- qc run "$[[ inputs.plan ]]" --scores "$[[ inputs.scores ]]" \
+          --expected "$[[ inputs.expected ]]" --model-version "$[[ inputs.model-version ]]"
+        if [ -n "$[[ inputs.control-inputs ]]" ]; then
+          set -- "$@" --control-inputs "$[[ inputs.control-inputs ]]"
+        fi
+      else
+        set -- check "$[[ inputs.plan ]]" --candidate "$[[ inputs.candidate ]]" \
+          --previous "$[[ inputs.previous ]]" --anchor "$[[ inputs.anchor ]]" \
+          --manifest "$[[ inputs.manifest ]]" --model-meta "$[[ inputs.model-meta ]]" \
+          --seed $[[ inputs.seed ]] --replicates $[[ inputs.replicates ]]
+      fi
+      medagentrx "$@" --ledger "$[[ inputs.ledger ]]" --out "$[[ inputs.out ]]"
   artifacts:
     when: always
     expire_in: 90 days

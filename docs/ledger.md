@@ -19,6 +19,7 @@ Each line is one JSON object:
 - `alpha.used` is the level spent, and `alpha.state_after` is the alpha accounting after this entry.
 - `inputs` holds the SHA-256 of every input file, so a reviewer can match files to decisions.
 - `kind` is `evaluation` for a formal check and `guard` for an agent's look. Guard entries spend a look but no alpha, and `answer` records what the agent was told.
+- A `qc` entry records a [deployment QC](qc.md) run: the model version, the run's bias, largest record difference, standardised bias, rules fired and verdict, and the SHA-256 of the score files. It never touches the locked test set and spends no alpha. The run history of the multirule check is read back from these entries.
 
 Times must not run backwards. `check` refuses an evaluation dated before the last entry, and `verify` reports any entry recorded before the one it follows. Without this, setting the clock back would let updates slip past the plan's frequency limit.
 
@@ -34,7 +35,7 @@ medagentrx ledger release ledger.jsonl --version 2.1.0
 ```
 
 - `card` writes the version's section into the model card and records the card's SHA-256. When the plan requires model card updates, DOC-001 fails the next update until the card for the previous accepted version is recorded.
-- `release` records that the version was put into service.
+- `release` records that the version was put into service. With `--qc-expected`, it also records the SHA-256 of the version's expected deployment QC scores, so QC can check a later version without a change to the plan.
 
 Each version takes at most one record of each kind, and only after an ACCEPTED evaluation of that version. A card record also requires the report to be of the candidate file that was accepted.
 
