@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from medagentrx.checks import REGISTRY, Breaks, Family, Finding, Status, catalogue
-from medagentrx.checks.registry import check
+from medagentrx.checks.registry import QC_FAMILIES, UPDATE_FAMILIES, check
 from medagentrx.engine import Evaluation, Verdict, alpha_after, decide, evaluate, json_safe
 from medagentrx.errors import InputError
 from medagentrx.exit_codes import ExitCode
@@ -55,7 +55,7 @@ def _history_for(case: Case, **changes: Any) -> History:
 
 
 def test_catalogue_matches_the_brief() -> None:
-    ids = [spec.check_id for spec in catalogue()]
+    ids = [spec.check_id for spec in catalogue(UPDATE_FAMILIES)]
     assert ids == [
         "PLAN-001",
         "PLAN-002",
@@ -77,6 +77,14 @@ def test_catalogue_matches_the_brief() -> None:
         "LIFE-002",
         "DOC-001",
     ]
+    assert [s.check_id for s in catalogue(QC_FAMILIES)] == [
+        "LIVE-001",
+        "LIVE-002",
+        "LIVE-003",
+        "LIVE-004",
+    ]
+    live = ["LIVE-001", "LIVE-002", "LIVE-003", "LIVE-004"]
+    assert [s.check_id for s in catalogue()] == [*ids, *live]
     breaks = {spec.check_id: spec.breaks for spec in catalogue()}
     assert {k for k, v in breaks.items() if v is Breaks.OUTSIDE_PLAN} == {
         "PLAN-001",
@@ -88,6 +96,10 @@ def test_catalogue_matches_the_brief() -> None:
         "DATA-004",
         "DATA-006",
         "LIFE-002",
+        "LIVE-001",
+        "LIVE-002",
+        "LIVE-003",
+        "LIVE-004",
     }
     assert {k for k, v in breaks.items() if v is Breaks.WARNING} == {"DATA-005", "PERF-006"}
     assert all(spec.cross_reference and spec.title for spec in catalogue())
@@ -153,7 +165,7 @@ def test_to_dict_is_strict_json(good_eval: Evaluation) -> None:
     text = json.dumps(good_eval.to_dict(), allow_nan=False)
     data = json.loads(text)
     assert data["verdict"] == "ACCEPTED"
-    assert [c["id"] for c in data["checks"]] == [s.check_id for s in catalogue()]
+    assert [c["id"] for c in data["checks"]] == [s.check_id for s in catalogue(UPDATE_FAMILIES)]
 
 
 def test_json_safe() -> None:
@@ -521,7 +533,7 @@ def test_missing_key_column_is_an_input_error(tmp_path: Path) -> None:
 
 
 def test_registry_has_every_check() -> None:
-    assert len(REGISTRY) == 19
+    assert len(REGISTRY) == 23
 
 
 def test_other_overlap_key_and_blank_feature(tmp_path: Path) -> None:

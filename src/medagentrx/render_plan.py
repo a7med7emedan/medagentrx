@@ -16,6 +16,7 @@ The document and the gate read the same YAML, so they cannot drift apart.
 from __future__ import annotations
 
 from medagentrx.checks import catalogue
+from medagentrx.checks.registry import UPDATE_FAMILIES
 from medagentrx.document import Bullets, Document, Para, Section, Table
 from medagentrx.plan import plan_fingerprint
 from medagentrx.plan.models import (
@@ -342,7 +343,7 @@ def build_document(plan: ChangePlan) -> Document:
                 ["Check", "What it enforces", "If it fails", "Cross-reference"],
                 [
                     [s.check_id, s.title, s.breaks.value.replace("_", " "), s.cross_reference]
-                    for s in catalogue()
+                    for s in catalogue(UPDATE_FAMILIES)
                 ],
             ),
         ],

@@ -25,6 +25,7 @@ import numpy as np
 from medagentrx import __version__
 from medagentrx.checks import REGISTRY, Breaks, Finding, Status, catalogue
 from medagentrx.checks.context import Context, Versions
+from medagentrx.checks.registry import UPDATE_FAMILIES
 from medagentrx.errors import InputError, PlanError
 from medagentrx.exit_codes import ExitCode
 from medagentrx.history import History
@@ -199,7 +200,7 @@ def _invalid_plan(error: PlanError, now: dt.datetime, seed: int, n_replicates: i
     findings = [Finding("PLAN-001", Status.FAIL, str(error), {"errors": list(error.details)})]
     findings += [
         Finding(spec.check_id, Status.SKIPPED, "Not assessed: the plan is not valid (PLAN-001)")
-        for spec in catalogue()
+        for spec in catalogue(UPDATE_FAMILIES)
         if spec.check_id != "PLAN-001"
     ]
     return Evaluation(
@@ -242,10 +243,10 @@ def refused(
             Status.SKIPPED,
             f"Not assessed: refused before any data was read ({check_id})",
         )
-        for spec in catalogue()
+        for spec in catalogue(UPDATE_FAMILIES)
         if spec.check_id != check_id
     ]
-    findings.sort(key=lambda f: [s.check_id for s in catalogue()].index(f.check_id))
+    findings.sort(key=lambda f: [s.check_id for s in catalogue(UPDATE_FAMILIES)].index(f.check_id))
     state = history.alpha or initial_state(
         plan.performance.alpha_spending, plan.performance.alpha_total, plan.max_updates
     )
@@ -377,7 +378,7 @@ def evaluate(
         now=now,
     )
     findings: list[Finding] = []
-    for spec in catalogue():
+    for spec in catalogue(UPDATE_FAMILIES):
         finding = spec.run(ctx)
         findings.append(finding)
         if finding.status is Status.FAIL and spec.breaks is Breaks.OUTSIDE_PLAN:
@@ -474,7 +475,7 @@ def statistical_findings(
         n_replicates=n_replicates,
         now=dt.datetime.now(dt.UTC),
     )
-    return [spec.run(ctx) for spec in catalogue() if spec.check_id in check_ids]
+    return [spec.run(ctx) for spec in catalogue(UPDATE_FAMILIES) if spec.check_id in check_ids]
 
 
 def alpha_after(state: AlphaState, evaluation: Evaluation) -> AlphaState:
