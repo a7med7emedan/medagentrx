@@ -16,7 +16,7 @@ The document and the gate read the same YAML, so they cannot drift apart.
 from __future__ import annotations
 
 from medagentrx.checks import catalogue
-from medagentrx.checks.registry import UPDATE_FAMILIES
+from medagentrx.checks.registry import QC_FAMILIES, UPDATE_FAMILIES
 from medagentrx.document import Bullets, Document, Para, Section, Table
 from medagentrx.plan import plan_fingerprint
 from medagentrx.plan.models import (
@@ -173,6 +173,52 @@ def _performance_notes(plan: ChangePlan) -> list[str | Bullets]:
     return notes
 
 
+def _qc_section(plan: ChangePlan) -> Section | None:
+    """Section 2.5, when the plan has deployment QC."""
+    qc = plan.deployment_qc
+    if qc is None:
+        return None
+    sd = (
+        f"The bias SD is fixed at {qc.sd:g}, with a target bias of zero."
+        if qc.sd is not None
+        else (
+            f"The bias mean and SD are estimated from the first {qc.baseline_runs} in-control "
+            "runs of each version; until then only the version, binding and tolerance "
+            f"checks apply. The SD is at least one third of the tolerance."
+        )
+    )
+    return Section(
+        "2.5 Deployment QC",
+        [
+            Para(
+                "As a clinical laboratory runs control samples with known answers, the live "
+                "system scores a locked set of raw control records on a schedule. Each run is "
+                "compared with the expected scores of the released version. A shift with no "
+                "listed modification behind it is an undeclared update and gives OUTSIDE_PLAN."
+            ),
+            Bullets(
+                [
+                    "Control inputs SHA-256: " + qc.control_inputs_sha256 + ".",
+                    "Control ids fingerprint: " + qc.control_ids_fingerprint + ".",
+                    "The control records are disjoint from the locked test set and the "
+                    "training data, and QC runs never spend the test set's evaluations.",
+                    "Expected scores are recorded for "
+                    + ("versions " if len(qc.expected_scores) > 1 else "version ")
+                    + ", ".join(sorted(qc.expected_scores))
+                    + ".",
+                    f"Every control record must stay within {qc.tolerance.absolute:g} of its "
+                    "expected score.",
+                    "Multirule QC on the run bias (Westgard et al. 1981): "
+                    + ", ".join(qc.rules)
+                    + ". 1_2s gives a warning; the other rules reject the run.",
+                    sd,
+                    "Schedule: " + (qc.schedule or "not stated") + ".",
+                ]
+            ),
+        ],
+    )
+
+
 def build_document(plan: ChangePlan) -> Document:
     """The PCCP document of a plan."""
     header = plan.plan
@@ -284,6 +330,7 @@ def build_document(plan: ChangePlan) -> Document:
                     )
                 ],
             ),
+            *([qc_section] if (qc_section := _qc_section(plan)) is not None else []),
         ],
     )
 
@@ -343,7 +390,11 @@ def build_document(plan: ChangePlan) -> Document:
                 ["Check", "What it enforces", "If it fails", "Cross-reference"],
                 [
                     [s.check_id, s.title, s.breaks.value.replace("_", " "), s.cross_reference]
-                    for s in catalogue(UPDATE_FAMILIES)
+                    for s in catalogue(
+                        (*UPDATE_FAMILIES, *QC_FAMILIES)
+                        if plan.deployment_qc is not None
+                        else UPDATE_FAMILIES
+                    )
                 ],
             ),
         ],
