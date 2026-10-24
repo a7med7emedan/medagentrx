@@ -203,10 +203,11 @@ def _qc_section(plan: ChangePlan) -> Section | None:
                     "Control ids fingerprint: " + qc.control_ids_fingerprint + ".",
                     "The control records are disjoint from the locked test set and the "
                     "training data, and QC runs never spend the test set's evaluations.",
-                    "Expected scores are recorded for "
+                    "Expected scores are recorded in this plan for "
                     + ("versions " if len(qc.expected_scores) > 1 else "version ")
                     + ", ".join(sorted(qc.expected_scores))
-                    + ".",
+                    + ". A version released later records its expected scores with its "
+                    "release in the decision ledger, so the plan does not change.",
                     f"Every control record must stay within {qc.tolerance.absolute:g} of its "
                     "expected score.",
                     "Multirule QC on the run bias (Westgard et al. 1981): "

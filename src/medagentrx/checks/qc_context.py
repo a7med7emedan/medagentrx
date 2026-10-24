@@ -43,6 +43,10 @@ class QcContext:
         expected: Expected scores of ``model_version``, or None when the plan has none.
         live_sha256: SHA-256 of the live score file.
         expected_sha256: SHA-256 of the expected score file.
+        recorded_expected: SHA-256 the expected score file must have: the plan's entry
+            for ``model_version``, or the one recorded with its release in the
+            ledger. None when neither exists.
+        expected_source: Where ``recorded_expected`` comes from: ``plan`` or ``ledger``.
         control_inputs_sha256: SHA-256 of the raw control file, when supplied.
         history: Earlier QC runs of ``model_version``, oldest first.
         now: Time of the run.
@@ -57,6 +61,8 @@ class QcContext:
     expected: Scores
     live_sha256: str
     expected_sha256: str
+    recorded_expected: str | None
+    expected_source: str | None
     control_inputs_sha256: str | None
     history: tuple[QcHistoryRun, ...]
     now: dt.datetime

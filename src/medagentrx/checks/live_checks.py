@@ -100,8 +100,10 @@ def live_version(ctx: QcContext) -> Finding:
 def score_binding(ctx: QcContext) -> Finding:
     """Live and expected scores must cover exactly the locked control ids.
 
-    The ids are compared by fingerprint, the expected score file by its SHA-256
-    in the plan, and the raw control inputs, when supplied, by theirs.
+    The ids are compared by fingerprint, and the raw control inputs, when
+    supplied, by their SHA-256. The expected score file must have the SHA-256
+    the plan records for the version, or, for a version released later, the
+    one recorded with its release in the ledger.
     """
     qc = ctx.qc
     problems: list[str] = []
@@ -111,15 +113,15 @@ def score_binding(ctx: QcContext) -> Finding:
         problems.append("the live score file does not cover exactly the control ids")
     if expected_ids != qc.control_ids_fingerprint:
         problems.append("the expected score file does not cover exactly the control ids")
-    planned = qc.expected_scores.get(ctx.model_version)
-    if planned is None:
+    if ctx.recorded_expected is None:
         problems.append(
-            f"the plan records no expected scores for version {ctx.model_version}; "
-            "add them with medagentrx qc init --version"
+            f"no expected scores are recorded for version {ctx.model_version}, in the plan or "
+            "with its release; record them with medagentrx ledger release --qc-expected"
         )
-    elif planned != ctx.expected_sha256:
+    elif ctx.recorded_expected != ctx.expected_sha256:
+        where = "the plan" if ctx.expected_source == "plan" else "its release record"
         problems.append(
-            f"the expected score file is not the one the plan records for {ctx.model_version}"
+            f"the expected score file is not the one {where} records for {ctx.model_version}"
         )
     if ctx.control_inputs_sha256 is not None and (
         ctx.control_inputs_sha256 != qc.control_inputs_sha256
@@ -131,6 +133,7 @@ def score_binding(ctx: QcContext) -> Finding:
         "control_ids_fingerprint": qc.control_ids_fingerprint,
         "records": ctx.live.n,
         "control_inputs_checked": ctx.control_inputs_sha256 is not None,
+        "expected_recorded_in": ctx.expected_source,
         "problems": problems,
     }
     if problems:

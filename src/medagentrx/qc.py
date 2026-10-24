@@ -186,6 +186,26 @@ def released_version(plan: ChangePlan, entries: Sequence[dict[str, Any]]) -> str
     return released[-1] if released else plan.anchor_version
 
 
+def recorded_expected(
+    plan: ChangePlan, entries: Sequence[dict[str, Any]], version: str
+) -> tuple[str | None, str | None]:
+    """SHA-256 the expected score file of ``version`` must have, and where it is recorded.
+
+    The plan's ``expected_scores`` covers versions known when the plan was
+    authorised. A version released later records its expected scores with its
+    release, so a routine release never changes the plan.
+    """
+    qc = plan.deployment_qc
+    if qc is not None and version in qc.expected_scores:
+        return qc.expected_scores[version], "plan"
+    for entry in reversed(entries):
+        if entry.get("kind") == "release" and entry.get("candidate_version") == version:
+            recorded = (entry.get("details") or {}).get("qc_expected_sha256")
+            if isinstance(recorded, str):
+                return recorded, "ledger"
+    return None, None
+
+
 def qc_history(entries: Sequence[dict[str, Any]], version: str) -> tuple[QcHistoryRun, ...]:
     """Earlier measured QC runs of ``version``, oldest first."""
     runs = []
@@ -258,6 +278,7 @@ def run_qc(
     }
     if control_inputs is not None:
         inputs["control_inputs"] = sha256_file(resolve_input(control_inputs, base=base))
+    recorded = recorded_expected(change_plan, entries, model_version)
     ctx = QcContext(
         plan=change_plan,
         plan_fingerprint=plan_fingerprint(change_plan),
@@ -268,6 +289,8 @@ def run_qc(
         expected=reference,
         live_sha256=inputs["scores"],
         expected_sha256=inputs["expected"],
+        recorded_expected=recorded[0],
+        expected_source=recorded[1],
         control_inputs_sha256=inputs.get("control_inputs"),
         history=qc_history(entries, model_version),
         now=now,
@@ -414,6 +437,10 @@ def qc_block_yaml(init: QcInit, *, tolerance: float = 1.0e-6) -> str:
     )
 
 
-def qc_entry_yaml(init: QcInit) -> str:
-    """The ``expected_scores`` line to add for a newly released version."""
-    return f'    "{init.version}": "{init.expected_sha256}"\n'
+def qc_release_command(init: QcInit, expected: str | Path) -> str:
+    """The command that records a newly released version with its expected scores.
+
+    The expected scores of a later release go into its ledger release record,
+    not into the plan, because any change to the plan breaks PLAN-001.
+    """
+    return f"medagentrx ledger release LEDGER --version {init.version} --qc-expected {expected}\n"

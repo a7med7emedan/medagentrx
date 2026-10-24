@@ -386,18 +386,38 @@ def ledger_keygen(
 def ledger_release(
     ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
     version: Annotated[str, typer.Option("--version", help="Accepted version put into service.")],
+    qc_expected: Annotated[
+        Path | None,
+        typer.Option(
+            "--qc-expected",
+            help="Expected scores of this version on the deployment QC control set.",
+        ),
+    ] = None,
     signing_key: SigningKeyOption = None,
 ) -> None:
-    """Record that an accepted version was put into service."""
+    """Record that an accepted version was put into service.
+
+    With --qc-expected, the release record also binds the version's expected
+    QC scores, so deployment QC can check it without a change to the plan.
+    """
+    from medagentrx.io.hashing import sha256_file
+    from medagentrx.io.paths import resolve_input
+    from medagentrx.io.predictions import load_scores
     from medagentrx.ledger import record
     from medagentrx.signing import load_private_key
 
     try:
         key = load_private_key(signing_key) if signing_key is not None else None
-        entry = record(ledger, "release", version, signing_key=key)
+        details = {}
+        if qc_expected is not None:
+            load_scores(qc_expected)
+            details["qc_expected_sha256"] = sha256_file(resolve_input(qc_expected))
+        entry = record(ledger, "release", version, details=details, signing_key=key)
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     typer.echo(f"recorded the release of {version} as entry {entry['seq']}")
+    if qc_expected is not None:
+        typer.echo(f"with expected QC scores {details['qc_expected_sha256'][:12]}")
 
 
 @ledger_app.command("show")
@@ -470,7 +490,8 @@ def qc_init_command(
     plan: Annotated[
         Path | None,
         typer.Option(
-            "--plan", help="Plan with a deployment_qc block: print only the new version's entry."
+            "--plan",
+            help="Plan with a deployment_qc block: print the new version's release command.",
         ),
     ] = None,
     tolerance: Annotated[
@@ -484,10 +505,11 @@ def qc_init_command(
 ) -> None:
     """Fingerprint a control set and print the deployment_qc block for the plan.
 
-    After a new release, run it again with --plan and --version to print the
-    expected_scores entry for that version.
+    After a new release, run it again with --plan and --version: it checks the
+    control set is the plan's and prints the ledger release command that records
+    the new version's expected scores.
     """
-    from medagentrx.qc import qc_block_yaml, qc_entry_yaml, qc_init
+    from medagentrx.qc import qc_block_yaml, qc_init, qc_release_command
 
     limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
     try:
@@ -505,8 +527,12 @@ def qc_init_command(
     checked = " and ".join(init.checked_against) or "nothing; pass --test-set and --manifest"
     typer.echo(f"{init.records} control records; disjointness checked against {checked}", err=True)
     if plan is not None:
-        typer.echo(f"add under deployment_qc.expected_scores in {plan}:", err=True)
-        typer.echo(qc_entry_yaml(init), nl=False)
+        typer.echo(
+            f"expected scores of {version}: {init.expected_sha256}; record them with the "
+            "release, so the plan stays unchanged:",
+            err=True,
+        )
+        typer.echo(qc_release_command(init, scores), nl=False)
     else:
         typer.echo(qc_block_yaml(init, tolerance=tolerance), nl=False)
 

@@ -32,6 +32,7 @@ from medagentrx.ledger import (
     entry_hash,
     head_path_for,
     read_entries,
+    record,
     summarize,
     verify,
 )
@@ -39,9 +40,9 @@ from medagentrx.plan import load_plan, plan_fingerprint
 from medagentrx.plan.models import ChangePlan
 from medagentrx.qc import (
     qc_block_yaml,
-    qc_entry_yaml,
     qc_history,
     qc_init,
+    qc_release_command,
     released_version,
     run_qc,
 )
@@ -198,7 +199,9 @@ def test_qc_init_block_validates(control: ControlSet, cohort: Any, tmp_path: Pat
         version="2.1.0",
         plan=control.plan,
     )
-    assert qc_entry_yaml(later) == f'    "2.1.0": "{later.expected_sha256}"\n'
+    assert qc_release_command(later, "e.parquet") == (
+        "medagentrx ledger release LEDGER --version 2.1.0 --qc-expected e.parquet\n"
+    )
 
 
 def test_qc_init_refusals(control: ControlSet, tmp_path: Path) -> None:
@@ -322,7 +325,10 @@ def test_binding_problems(control: ControlSet) -> None:
     control.plan.write_text(plan_text, encoding="utf-8")
     _edit_plan(control, expected_scores={"9.9.9": "0" * 64})
     run = _run(control, _scores(control, "live", _noise(control, 3)), record=False)
-    assert "no expected scores for version 2.0.0" in run.finding("LIVE-002").message
+    assert (
+        "no expected scores are recorded for version 2.0.0"
+        in run.finding("LIVE-002").message.lower()
+    )
     run = _run(
         control,
         _scores(control, "live", _noise(control, 3)),
@@ -473,7 +479,7 @@ def test_cli_init_and_run(control: ControlSet, tmp_path: Path) -> None:
             str(control.plan),
         ],
     )
-    assert entry.stdout.startswith('    "2.1.0": ')
+    assert entry.stdout.startswith("medagentrx ledger release LEDGER --version 2.1.0 --qc-expected")
     bad = runner.invoke(
         app,
         [
@@ -637,7 +643,10 @@ def test_document_has_a_qc_section(control: ControlSet) -> None:
     checks = text.sections[-1].blocks[-1]
     assert "LIVE-004" in [row[0] for row in checks.rows]  # type: ignore[union-attr]
     bullets = text.sections[1].sections[-1].blocks[1]
-    assert "Expected scores are recorded for versions 2.0.0, 2.1.0." in bullets.items  # type: ignore[union-attr]
+    assert any(
+        str(item).startswith("Expected scores are recorded in this plan for versions 2.0.0, 2.1.0.")
+        for item in bullets.items  # type: ignore[union-attr]
+    )
     plain = build_document(
         load_plan(EXAMPLE / "change-plan.yaml").model_copy(update={"deployment_qc": None})
     )
@@ -687,3 +696,65 @@ def test_qc_scenarios_rerun_into_the_same_folder(tmp_path: Path) -> None:
     assert first.ok
     assert second.ok
     assert len(read_entries(tmp_path / "qc-wrong-ids" / "ledger.jsonl")) == 1
+
+
+def test_later_release_records_its_expected_scores(control: ControlSet, tmp_path: Path) -> None:
+    from medagentrx.engine import evaluate
+    from medagentrx.ledger import append
+    from tests.helpers.cases import make_case
+
+    plan_text = control.plan.read_text(encoding="utf-8")
+    _edit_plan(control, expected_scores={"2.0.0": sha256_file(control.expected["2.0.0"][0])})
+    case = make_case(tmp_path / "case")
+    ledger = tmp_path / "release.jsonl"
+    append(ledger, evaluate(**case.kwargs(), n_replicates=200, now=T0 - dt.timedelta(days=2)))
+    assert (
+        runner.invoke(
+            app,
+            [
+                "ledger",
+                "release",
+                str(ledger),
+                "--version",
+                "2.1.0",
+                "--qc-expected",
+                str(tmp_path / "missing.parquet"),
+            ],
+        ).exit_code
+        == 3
+    )
+    copy = tmp_path / "copy.jsonl"
+    copy.write_bytes(ledger.read_bytes())
+    head_path_for(copy).write_bytes(head_path_for(ledger).read_bytes())
+    released = runner.invoke(
+        app,
+        [
+            "ledger",
+            "release",
+            str(copy),
+            "--version",
+            "2.1.0",
+            "--qc-expected",
+            str(control.expected["2.1.0"][0]),
+        ],
+    )
+    assert released.exit_code == 0, released.output
+    assert "with expected QC scores" in released.output
+    details = {"qc_expected_sha256": sha256_file(control.expected["2.1.0"][0])}
+    record(ledger, "release", "2.1.0", now=T0 - dt.timedelta(days=1), details=details)
+    live = _scores(control, "v21", _noise(control, 95, version="2.1.0"))
+    run = _run(control, live, ledger=ledger, version="2.1.0", k=0)
+    assert run.verdict is QcVerdict.IN_CONTROL
+    assert run.finding("LIVE-002").details["expected_recorded_in"] == "ledger"
+    old = _run(control, _scores(control, "v20", _noise(control, 96)), ledger=ledger, k=1)
+    assert old.failed_checks == ["LIVE-001"]
+    wrong = run_qc(
+        plan=control.plan,
+        scores=live,
+        expected=control.expected["2.0.0"][0],
+        model_version="2.1.0",
+        entries=read_entries(ledger),
+        now=T0 + dt.timedelta(days=2),
+    )
+    assert "its release record" in wrong.finding("LIVE-002").message
+    assert control.plan.read_text(encoding="utf-8") != plan_text
