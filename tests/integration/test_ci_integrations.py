@@ -9,7 +9,6 @@ CI also runs the Action itself with Docker.
 
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -141,6 +140,7 @@ def test_action_check_step(tmp_path: Path, mutate: str | None, verdict: str, cod
     assert (workspace / "ledger" / "ledger.jsonl").exists()
 
 
+@posix_only
 def test_gitlab_component(tmp_path: Path) -> None:
     spec, jobs = list(
         yaml.safe_load_all((REPO_ROOT / "templates" / "medagentrx.yml").read_text(encoding="utf-8"))
@@ -160,11 +160,15 @@ def test_gitlab_component(tmp_path: Path) -> None:
         r"\$\[\[ inputs\.([a-z-]+) \]\]", lambda m: str(values[m.group(1)]), job["script"][0]
     )
     workspace = _workspace(tmp_path)
-    args = shlex.split(script)
-    assert args[:2] == ["medagentrx", "check"]
+    assert 'medagentrx "$@"' in script
     medagentrx = shutil.which("medagentrx")
     assert medagentrx is not None
-    result = subprocess.run([medagentrx, *args[1:]], cwd=workspace, capture_output=True, text=True)  # noqa: S603
+    sh = shutil.which("sh")
+    assert sh is not None
+    env = {**os.environ, "PATH": f"{Path(medagentrx).parent}{os.pathsep}{os.environ['PATH']}"}
+    result = subprocess.run(  # noqa: S603
+        [sh, "-e", "-c", script], cwd=workspace, capture_output=True, text=True, env=env
+    )
     assert result.returncode == 0, result.stderr
     assert (workspace / "medagentrx-report" / "junit.xml").exists()
 

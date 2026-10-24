@@ -11,24 +11,41 @@ branding:
   color: green
 
 inputs:
+  mode:
+    description: >-
+      check judges a model update (the default); qc judges a deployment QC run of the live
+      system on the plan's control set.
+    default: check
   plan:
     description: Path to change-plan.yaml.
     required: true
   candidate:
-    description: Candidate predictions on the locked test set (Parquet or CSV).
-    required: true
+    description: Candidate predictions on the locked test set (Parquet or CSV). Mode check.
+    default: ""
   previous:
-    description: Predictions of the version being replaced.
-    required: true
+    description: Predictions of the version being replaced. Mode check.
+    default: ""
   anchor:
-    description: Predictions of the originally authorised version.
-    required: true
+    description: Predictions of the originally authorised version. Mode check.
+    default: ""
   manifest:
-    description: Training data manifest of the candidate.
-    required: true
+    description: Training data manifest of the candidate. Mode check.
+    default: ""
   model-meta:
-    description: model.yaml of the candidate.
-    required: true
+    description: model.yaml of the candidate. Mode check.
+    default: ""
+  scores:
+    description: Live system's scores on the control set. Mode qc.
+    default: ""
+  expected:
+    description: Expected scores of the model version on the control set. Mode qc.
+    default: ""
+  model-version:
+    description: Version the live system reports it is running. Mode qc.
+    default: ""
+  control-inputs:
+    description: Raw control file, checked against the plan when given. Mode qc.
+    default: ""
   ledger:
     description: Decision ledger. It must persist between runs, for example committed to the repository.
     required: true
@@ -69,10 +86,10 @@ inputs:
 
 outputs:
   verdict:
-    description: ACCEPTED, FAILED, OUTSIDE_PLAN or ERROR.
+    description: ACCEPTED, FAILED or OUTSIDE_PLAN (mode check), IN_CONTROL or OUTSIDE_PLAN (mode qc), or ERROR.
     value: ${{ steps.check.outputs.verdict }}
   exit-code:
-    description: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
+    description: 0 ACCEPTED or IN_CONTROL, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
     value: ${{ steps.check.outputs.exit-code }}
 
 runs:
@@ -83,17 +100,22 @@ runs:
       shell: bash
       run: docker build --quiet --tag medagentrx-action:local "$GITHUB_ACTION_PATH"
 
-    - name: Check the update against its plan
+    - name: Check against the plan
       id: check
       shell: bash
       env:
         MEDAGENTRX_IMAGE: ${{ inputs.image }}
+        MODE: ${{ inputs.mode }}
         PLAN: ${{ inputs.plan }}
         CANDIDATE: ${{ inputs.candidate }}
         PREVIOUS: ${{ inputs.previous }}
         ANCHOR: ${{ inputs.anchor }}
         MANIFEST: ${{ inputs.manifest }}
         MODEL_META: ${{ inputs.model-meta }}
+        SCORES: ${{ inputs.scores }}
+        EXPECTED: ${{ inputs.expected }}
+        MODEL_VERSION: ${{ inputs.model-version }}
+        CONTROL_INPUTS: ${{ inputs.control-inputs }}
         LEDGER: ${{ inputs.ledger }}
         OUT: ${{ inputs.out }}
         SEED: ${{ inputs.seed }}
@@ -112,20 +134,34 @@ runs:
             --env MEDAGENTRX_SIGNING_KEY=/run/medagentrx/signing.key
             --env MEDAGENTRX_SIGNING_KEY_PASSPHRASE)
         fi
+        case "${MODE:-check}" in
+          check)
+            command=(check "$PLAN"
+              --candidate "$CANDIDATE" --previous "$PREVIOUS" --anchor "$ANCHOR"
+              --manifest "$MANIFEST" --model-meta "$MODEL_META"
+              --seed "$SEED" --replicates "$REPLICATES")
+            passed=ACCEPTED ;;
+          qc)
+            command=(qc run "$PLAN"
+              --scores "$SCORES" --expected "$EXPECTED" --model-version "$MODEL_VERSION")
+            if [ -n "$CONTROL_INPUTS" ]; then command+=(--control-inputs "$CONTROL_INPUTS"); fi
+            passed=IN_CONTROL ;;
+          *)
+            echo "mode must be check or qc, got '$MODE'" >&2
+            exit 3 ;;
+        esac
         set +e
         docker run --rm --read-only --tmpfs /tmp --network none \
           --user "$(id -u):$(id -g)" \
           --volume "$GITHUB_WORKSPACE:/work" --workdir /work \
           "${signing[@]}" \
-          "$image" check "$PLAN" \
-          --candidate "$CANDIDATE" --previous "$PREVIOUS" --anchor "$ANCHOR" \
-          --manifest "$MANIFEST" --model-meta "$MODEL_META" --ledger "$LEDGER" \
-          --out "$OUT" --seed "$SEED" --replicates "$REPLICATES" --format "$FORMAT"
+          "$image" "${command[@]}" \
+          --ledger "$LEDGER" --out "$OUT" --format "$FORMAT"
         code=$?
         set -e
         if [ -n "${keydir:-}" ]; then rm -rf "$keydir"; fi
         case "$code" in
-          0) verdict=ACCEPTED ;;
+          0) verdict=$passed ;;
           1) verdict=FAILED ;;
           2) verdict=OUTSIDE_PLAN ;;
           *) verdict=ERROR ;;
@@ -158,7 +194,7 @@ runs:
         path: ${{ inputs.out }}
         if-no-files-found: warn
 
-    - name: Fail unless the update was accepted
+    - name: Fail unless the update was accepted or the live system is in control
       shell: bash
       env:
         CODE: ${{ steps.check.outputs.exit-code }}
