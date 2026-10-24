@@ -121,14 +121,19 @@ def _expected(cohort: Cohort, version: Recipe) -> FloatArray:
 
 
 @dataclass(frozen=True)
-class _Setup:
+class ControlSet:
+    """Files of a synthetic control set: plan, raw inputs, ids and expected scores."""
+
     plan: Path
     control: Path
     ids: list[str]
     expected: dict[str, tuple[Path, FloatArray]]
 
 
-def _setup(cohort: Cohort, root: Path, *, versions: tuple[str, ...] = ("2.0.0",)) -> _Setup:
+def prepare_control_set(
+    cohort: Cohort, root: Path, *, versions: tuple[str, ...] = ("2.0.0",)
+) -> ControlSet:
+    """Write raw control inputs, expected scores and a demo plan with a QC block."""
     root.mkdir(parents=True, exist_ok=True)
     dev = cohort.development
     if dev is None:  # pragma: no cover
@@ -159,11 +164,11 @@ def _setup(cohort: Cohort, root: Path, *, versions: tuple[str, ...] = ("2.0.0",)
     plan_path = root / "change-plan.yaml"
     plan_path.write_text(yaml.safe_dump(plan, sort_keys=False), encoding="utf-8")
     (root / "intended-use.txt").write_bytes(INTENDED_USE_TEXT)
-    return _Setup(plan_path, control, ids, expected)
+    return ControlSet(plan_path, control, ids, expected)
 
 
 def _run(
-    setup: _Setup,
+    setup: ControlSet,
     root: Path,
     k: int,
     scores: FloatArray | None = None,
@@ -189,7 +194,7 @@ def _run(
 
 
 def _baseline(
-    setup: _Setup, root: Path, rng: np.random.Generator
+    setup: ControlSet, root: Path, rng: np.random.Generator
 ) -> tuple[list[dict[str, Any]], FloatArray]:
     expected = setup.expected["2.0.0"][1]
     runs = [
@@ -201,7 +206,7 @@ def _baseline(
 
 def build_clean(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """Ten baseline runs and ten monitored runs with numerical noise only."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(11)
     runs, expected = _baseline(setup, root, rng)
     runs += [
@@ -213,7 +218,7 @@ def build_clean(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
 
 def build_dependency_change(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """A library upgrade moves every score by 3e-7, inside the per-record tolerance."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(12)
     runs, expected = _baseline(setup, root, rng)
     shifted = expected + 3.0e-7 + rng.normal(0.0, QC_NOISE, QC_RECORDS)
@@ -222,7 +227,7 @@ def build_dependency_change(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
 
 def build_preprocessing_change(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """A changed preprocessing step moves 20 of the 200 control records by 2e-5."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(13)
     runs, expected = _baseline(setup, root, rng)
     shift = np.zeros(QC_RECORDS)
@@ -233,7 +238,7 @@ def build_preprocessing_change(cohort: Cohort, root: Path) -> list[dict[str, Any
 
 def build_outlier_run(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """One run lands 2.5 SD from the mean: a 1_2s warning, not a rejection."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(14)
     runs, expected = _baseline(setup, root, rng)
     outlier = expected + 2.5 * FLOOR + rng.normal(0.0, QC_NOISE, QC_RECORDS)
@@ -242,7 +247,7 @@ def build_outlier_run(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
 
 def build_slow_drift(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """Scores creep upwards by a fraction of an SD per run; 10_x catches it."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(15)
     runs, expected = _baseline(setup, root, rng)
     for k in range(10):
@@ -260,7 +265,7 @@ def build_slow_drift(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
 
 def build_unreleased_version(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """Version 2.1.0 runs live, but only 2.0.0 has been released."""
-    setup = _setup(cohort, root, versions=("2.0.0", "2.1.0"))
+    setup = prepare_control_set(cohort, root, versions=("2.0.0", "2.1.0"))
     rng = np.random.default_rng(16)
     scores = setup.expected["2.1.0"][1] + rng.normal(0.0, QC_NOISE, QC_RECORDS)
     return [_run(setup, root, 0, scores, version="2.1.0")]
@@ -268,7 +273,7 @@ def build_unreleased_version(cohort: Cohort, root: Path) -> list[dict[str, Any]]
 
 def build_wrong_ids(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """The score file covers other records than the locked control set."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     rng = np.random.default_rng(17)
     ids = [*setup.ids[:-5], *(f"OTHER-{i}" for i in range(5))]
     scores = setup.expected["2.0.0"][1] + rng.normal(0.0, QC_NOISE, QC_RECORDS)
@@ -277,7 +282,7 @@ def build_wrong_ids(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
 
 def build_malformed(cohort: Cohort, root: Path) -> list[dict[str, Any]]:
     """A score file with a value that is not a number: an input error, exit 3."""
-    setup = _setup(cohort, root)
+    setup = prepare_control_set(cohort, root)
     raw: dict[str, list[object]] = {
         "row_id": list(setup.ids),
         "y_score": ["not a number", *(["0.5"] * (QC_RECORDS - 1))],
@@ -396,4 +401,13 @@ def run_all_qc(
     ]
 
 
-__all__ = ["FLOOR", "QC_SCENARIOS", "QcScenarioResult", "run_all_qc", "run_qc_scenario"]
+__all__ = [
+    "FLOOR",
+    "QC_NOISE",
+    "QC_SCENARIOS",
+    "ControlSet",
+    "QcScenarioResult",
+    "prepare_control_set",
+    "run_all_qc",
+    "run_qc_scenario",
+]

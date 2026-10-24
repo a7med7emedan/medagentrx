@@ -76,3 +76,16 @@ impact_assessment:             # FDA third component
 regulatory_map:                # informative cross-reference, rendered in the plan document
   fda: "PCCP final guidance, 4 Dec 2024"
   eu: ["AI Act Art. 43(4)", "AI Act Annex IV 2(f)", "MDCG 2025-6"]
+
+# Deployment QC: control samples scored by the live system (medagentrx qc init).
+# The raw control records stay with the user; the plan keeps fingerprints only.
+deployment_qc:                 # control samples for the live system
+  control_inputs_sha256: "841762fd7836210ae8eb42209cba7d07e88f3076f1fd4b6a2815d6007486e742"
+  control_ids_fingerprint: "5d74b571e61a86cc145f6771944321d49967c974a87a8a977665d1de3534829f"
+  expected_scores:              # one entry per released version
+    "2.0.0": "78cbc72ee4f6c257192a7618d65261fdfc502b819975c979a0d55b6346871a9d"
+  tolerance: {absolute: 1.0e-06}  # largest per-record difference
+  rules: [1_2s, 1_3s, 2_2s, R_4s, 10_x]
+  sd: null                     # or a number; null estimates it from baseline runs
+  baseline_runs: 20
+  schedule: "daily"            # documentation only

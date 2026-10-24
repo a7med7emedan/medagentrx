@@ -17,8 +17,9 @@ from medagentrx.demo.cohort import make_cohort, sigma_for_auc
 from medagentrx.demo.plan import demo_plan
 from medagentrx.demo.scenarios import INTENDED_USE_SHA256, locked_fingerprint
 from medagentrx.engine import Evaluation
-from medagentrx.io.fingerprint import fingerprint_file
-from medagentrx.io.predictions import load_predictions
+from medagentrx.io.fingerprint import fingerprint_file, id_fingerprint
+from medagentrx.io.hashing import sha256_file
+from medagentrx.io.predictions import load_predictions, load_row_ids
 from medagentrx.ledger import load_history, verify
 from medagentrx.plan.models import ChangePlan
 from tests.conftest import EXAMPLE_DIR, EXAMPLE_PLAN
@@ -147,7 +148,17 @@ def test_example_matches_the_demo() -> None:
             test_set_sha256=locked_fingerprint(cohort), intended_use_sha256=INTENDED_USE_SHA256
         )
     )
-    assert load_plan(EXAMPLE_PLAN) == expected
+    example = load_plan(EXAMPLE_PLAN)
+    assert example.model_copy(update={"deployment_qc": None}) == expected
+    qc = example.deployment_qc
+    assert qc is not None
+    folder = EXAMPLE_DIR / "qc"
+    assert qc.control_inputs_sha256 == sha256_file(folder / "control_inputs.parquet")
+    assert qc.expected_scores == {"2.0.0": sha256_file(folder / "expected-2.0.0.parquet")}
+    ids = load_row_ids(folder / "control_inputs.parquet")
+    assert qc.control_ids_fingerprint == id_fingerprint(ids)
+    assert not set(ids) & set(load_row_ids(EXAMPLE_DIR / "candidate.parquet"))
+    assert not set(ids) & set(load_row_ids(EXAMPLE_DIR / "train_manifest.parquet"))
     assert fingerprint_file(EXAMPLE_DIR / "candidate.parquet") == locked_fingerprint(cohort)
     shipped = load_predictions(EXAMPLE_DIR / "candidate.parquet")
     assert shipped.n == 20_000

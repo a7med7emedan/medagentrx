@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example GitHub Actions workflow: daily deployment QC of the live model.
+# Copy it to .github/workflows/ in the repository that holds your plan and
+# ledger. MedAgentRx does not schedule anything itself; this workflow does.
+
+name: deployment-qc
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # every day at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write          # the ledger is committed back to the repository
+
+concurrency:
+  group: medagentrx-ledger # one writer of the ledger at a time
+  cancel-in-progress: false
+
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # Replace this step with your own: send the raw control records through the
+      # production service, exactly as live requests go, and save the scores as
+      # qc/live-scores.parquet with the columns row_id and y_score. Also report
+      # the model version the service says it is running.
+      - name: Score the control set with the live system
+        id: live
+        run: |
+          echo "model-version=2.0.0" >> "$GITHUB_OUTPUT"
+
+      - name: Judge the QC run
+        uses: a7med7emedan/medagentrx@v0.2.0
+        with:
+          mode: qc
+          plan: change-plan.yaml
+          scores: qc/live-scores.parquet
+          expected: qc/expected-${{ steps.live.outputs.model-version }}.parquet
+          model-version: ${{ steps.live.outputs.model-version }}
+          control-inputs: qc/control_inputs.parquet
+          ledger: governance/ledger.jsonl
+          out: qc-report
+
+      - name: Record the run in the ledger
+        if: always()
+        run: |
+          git config user.name "deployment-qc"
+          git config user.email "deployment-qc@users.noreply.github.com"
+          git add governance/ledger.jsonl governance/ledger.jsonl.head
+          git commit -m "Record deployment QC run" || exit 0
+          git push
