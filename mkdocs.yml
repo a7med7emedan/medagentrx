@@ -54,6 +54,7 @@ nav:
   - Start here: index.md
   - Quickstart: quickstart.md
   - For agents and AutoML: agents.md
+  - Deployment QC: qc.md
   - Reference:
       - Change plan: plan-reference.md
       - Checks catalogue: checks.md

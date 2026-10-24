@@ -36,8 +36,9 @@ Each verdict rests on established methods. AUROC is compared with paired DeLong 
 | PERF | AUROC, sensitivity and specificity, calibration, net benefit and every subgroup meet the plan; power for the margin | FAILED or a warning |
 | LIFE | No bio-creep against the authorised version; alpha left | FAILED or OUTSIDE_PLAN |
 | DOC | The model card is kept up to date across versions | FAILED |
+| LIVE | Deployment QC: the live system is the released version and still reproduces its control scores | OUTSIDE_PLAN |
 
-The [checks catalogue](https://a7med7emedan.github.io/medagentrx/checks/) lists all 19 checks with their regulatory cross-references.
+The [checks catalogue](https://a7med7emedan.github.io/medagentrx/checks/) lists all 23 checks with their regulatory cross-references.
 
 ## Quick start
 
@@ -46,7 +47,7 @@ pip install medagentrx
 medagentrx demo
 ```
 
-The demo runs ten scenarios on a synthetic cohort, with no real patient data. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
+The demo runs eighteen scenarios on a synthetic cohort, with no real patient data: ten model updates and eight deployment QC runs. Each scenario plants one defect, or none, and must produce exactly its expected verdict. To check your own update:
 
 ```bash
 medagentrx init                                   # write a commented change-plan.yaml
@@ -109,12 +110,23 @@ print(decision.allowed, decision.reason, decision.looks_remaining)
 
 An agent may try only the modifications the plan marks as automatic. Each try spends one look at the locked test set. In the default thresholdout mode the agent learns only whether the candidate passes, with random noise added so that repeated tries reveal little about the test set. If the agent also supplies predictions on its own validation data, the guard follows Thresholdout (Dwork et al. 2015) and answers from those whenever they agree with the test set. See [For agents and AutoML](https://a7med7emedan.github.io/medagentrx/agents/).
 
+## Deployment QC
+
+A model can change behaviour without any change to its weights: a new library, inference runtime, hardware type or preprocessing step is enough. Like a clinical laboratory running a control sample with a known answer, the live system scores a locked set of raw control records on a schedule. MedAgentRx compares each run with the released version's expected scores, using per-record tolerance and laboratory multirule QC (Westgard rules), and records every run in the ledger.
+
+```bash
+medagentrx qc run change-plan.yaml --scores live-scores.parquet \
+  --expected expected-2.0.0.parquet --model-version 2.0.0 --ledger ledger.jsonl --out qc-report/
+```
+
+A run is **IN_CONTROL** (exit 0) or **OUTSIDE_PLAN** (exit 2): a shift with no listed modification behind it is an undeclared update. See [Deployment QC](https://a7med7emedan.github.io/medagentrx/qc/).
+
 ## Continuous integration
 
 GitHub Actions:
 
 ```yaml
-- uses: a7med7emedan/medagentrx@v0.1.1
+- uses: a7med7emedan/medagentrx@v0.2.0
   with:
     plan: change-plan.yaml
     candidate: predictions/candidate.parquet
@@ -129,7 +141,7 @@ GitLab CI/CD:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.1.1
+  - component: $CI_SERVER_FQDN/<group>/medagentrx/medagentrx@0.2.0
     inputs:
       image: <registry>/medagentrx@sha256:<digest>
       plan: change-plan.yaml

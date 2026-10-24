@@ -119,7 +119,7 @@ Adding a `deployment_qc` block to a plan that is already in use is a change to t
 
 ## False alarms and detection
 
-The [validation results](validation.md#deployment-qc) quantify the rules under pure noise and under shifts of 0.5 to 3 SD. With daily runs of a stack that has real run-to-run noise, the full rule set gives about 2 to 7 false alarms a year, depending on how the SD was set. Treat an OUTSIDE_PLAN from QC as a reason to stop and investigate, as a laboratory does, and rerun the control set before concluding. A deterministic stack, which reproduces its scores exactly, gives none.
+The [validation results](validation.md#deployment-qc) quantify the rules under pure noise and under shifts of 0.5 to 3 SD. With daily runs of a stack that has real run-to-run noise, the full rule set gives about 2 to 7 false alarms a year, depending on how the SD was set. Treat an OUTSIDE_PLAN from QC as a reason to stop and investigate, as a laboratory does, and rerun the control set before concluding. A deterministic stack that reproduces its expected scores exactly gives none.
 
 ## Reference
 

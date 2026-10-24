@@ -9,6 +9,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Every check has an identifier, a family, what a failure does to the verdict, and a regulatory cross-reference. A failure marked OUTSIDE_PLAN makes the update outside the plan. Any other failure gives FAILED. Warnings never change the verdict.
 
+The PLAN, DATA, PERF, LIFE and DOC checks judge a candidate update (`medagentrx check`). The LIVE checks judge a [deployment QC](qc.md) run of the live system (`medagentrx qc run`), which is IN_CONTROL or OUTSIDE_PLAN.
+
 | Check | Family | What it checks | If it fails | Cross-reference |
 |---|---|---|---|---|
 | PLAN-001 | PLAN | Plan is valid and unchanged since the ledger began | OUTSIDE PLAN | A change to a PCCP needs a new submission |

@@ -8,8 +8,8 @@
   "codeRepository": "https://github.com/a7med7emedan/medagentrx",
   "programmingLanguage": "Python",
   "runtimePlatform": "Python 3.11, 3.12, 3.13",
-  "version": "0.1.1",
-  "datePublished": "2026-10-14",
+  "version": "0.2.0",
+  "datePublished": "2026-10-24",
   "developmentStatus": "active",
   "keywords": ["pccp", "predetermined change control plan", "medical device software", "eu-ai-act", "ai-agents", "model-governance"]
 }

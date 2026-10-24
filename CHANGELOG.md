@@ -7,11 +7,23 @@ SPDX-License-Identifier: Apache-2.0
 
 All notable changes are recorded here. The format follows Keep a Changelog, and the project uses semantic versioning.
 
-## 0.1.1, 2026-10-14
+## 0.2.0, 2026-10-24
+
+### Added
+
+- Deployment QC: control samples for the live system, as in a clinical laboratory. A new library, runtime, hardware type or preprocessing step can change a deployed model's behaviour without changing its weights. The live system scores a locked set of raw control records on a schedule, and each run is IN_CONTROL (exit 0) or OUTSIDE_PLAN (exit 2).
+- An optional `deployment_qc` plan block: fingerprints of the raw control inputs and their ids, the expected scores of each version known at authorisation, a per-record tolerance and the multirule QC rules. Plans without it validate and fingerprint exactly as before.
+- The LIVE check family: the live version is the released one (LIVE-001), the score files are bound to the control set (LIVE-002), every record is within tolerance (LIVE-003), and the run bias passes the Westgard multirule rules 1_2s, 1_3s, 2_2s, R_4s and 10_x over the version's run history (LIVE-004).
+- `medagentrx qc init` and `medagentrx qc run`, `medagentrx.qc` in the Python API and `Guard.qc` for agents. QC runs are a new `qc` entry kind in the same hash-chained ledger and never touch the locked test set.
+- `medagentrx ledger release --qc-expected` records a later version's expected QC scores with its release, so a routine release never changes the plan.
+- QC reports in HTML, JSON with a published schema, Markdown and JUnit, with a Levey-Jennings chart. The dashboard gains a QC page and lists QC runs in the timeline. The PCCP document gains a deployment QC section.
+- A `mode: qc` input for the GitHub Action and the GitLab component; `check` stays the default.
+- Eight planted QC scenarios in `medagentrx demo`, QC files and a scheduled workflow in the example, and a simulation of false alarms and detection in the validation results.
 
 ### Changed
 
 - The README opens with a figure of how the gate decides and shows the real output of a failing check. The terminal recording is removed, and the bio-creep timeline moves to the methods page.
+- The regulatory mapping cites the FDA PCCP guidance as reissued on 18 August 2025 and maps deployment QC to post-market monitoring.
 
 ### Fixed
 

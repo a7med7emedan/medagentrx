@@ -14,7 +14,7 @@ medagentrx demo
 
 The read-only dashboard needs the web extra: `pip install "medagentrx[web]"`. A container image is published as `ghcr.io/a7med7emedan/medagentrx`.
 
-The demo builds a synthetic sepsis cohort with 20,000 test rows, and no real patient data, then runs ten scenarios. Each scenario plants one property and must give exactly its expected verdict:
+The demo builds a synthetic sepsis cohort with 20,000 test rows, and no real patient data, then runs eighteen scenarios. Each scenario plants one property and must give exactly its expected verdict. Ten judge model updates:
 
 | Scenario | Planted property | Verdict | Check |
 |---|---|---|---|
@@ -28,6 +28,19 @@ The demo builds a synthetic sepsis cohort with 20,000 test rows, and no real pat
 | bio-creep | Five updates each 0.008 AUROC worse | FAILED at the fifth | LIFE-001 |
 | peeking-agent | An agent submits 25 candidates on a budget of 20 | OUTSIDE_PLAN at the 21st | DATA-004 |
 | underpowered | Test set too small for the margin | ACCEPTED with a warning | PERF-006 |
+
+Eight judge deployment QC runs of the live system. Each first completes a baseline of ten in-control runs where it needs one:
+
+| Scenario | Planted property | Verdict | Check |
+|---|---|---|---|
+| qc-clean | Numerical noise only, inside tolerance | IN_CONTROL on all 20 runs | none |
+| qc-dependency-change | Library upgrade shifts every score by 3e-7 | OUTSIDE_PLAN | LIVE-004 (1_3s) |
+| qc-preprocessing-change | Preprocessing change moves 20 of 200 records | OUTSIDE_PLAN | LIVE-003, LIVE-004 |
+| qc-outlier-run | One run 2.5 SD from the mean | IN_CONTROL with a warning | LIVE-004 (1_2s) |
+| qc-slow-drift | Scores creep upwards run after run | OUTSIDE_PLAN at the tenth drift run | LIVE-004 (10_x) |
+| qc-unreleased-version | Version 2.1.0 runs live before its release | OUTSIDE_PLAN | LIVE-001 |
+| qc-wrong-ids | Score file for other records | OUTSIDE_PLAN | LIVE-002 |
+| qc-malformed | Score file with a value that is not a number | input error, exit 3 | none |
 
 Reports for every step are written under `medagentrx-demo/`. Open any `report.html` in a browser; it works offline.
 

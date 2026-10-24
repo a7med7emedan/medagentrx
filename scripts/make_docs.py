@@ -99,6 +99,10 @@ def checks_page() -> str:
         "regulatory cross-reference. A failure marked OUTSIDE_PLAN makes the update outside the "
         "plan. Any other failure gives FAILED. Warnings never change the verdict.",
         "",
+        "The PLAN, DATA, PERF, LIFE and DOC checks judge a candidate update (`medagentrx check`). "
+        "The LIVE checks judge a [deployment QC](qc.md) run of the live system (`medagentrx qc "
+        "run`), which is IN_CONTROL or OUTSIDE_PLAN.",
+        "",
         "| Check | Family | What it checks | If it fails | Cross-reference |",
         "|---|---|---|---|---|",
     ]
