@@ -81,6 +81,8 @@ class QcRun:
         rejections: Multirule rules that rejected the run.
         warnings: Multirule rules that warned.
         z: Standardised bias, or None before the baseline is complete.
+        mean: Target bias of the multirule check, or None before the baseline.
+        sd: SD of the multirule check, or None before the baseline.
         history: Earlier runs of this version, oldest first.
         run_at: Time of the run.
         ledger_entries_before: Ledger entries the history was read from.
@@ -100,6 +102,8 @@ class QcRun:
     rejections: tuple[str, ...]
     warnings: tuple[str, ...]
     z: float | None
+    mean: float | None
+    sd: float | None
     history: tuple[QcHistoryRun, ...]
     run_at: dt.datetime
     ledger_entries_before: int = 0
@@ -143,6 +147,8 @@ class QcRun:
                     "bias": self.bias,
                     "max_abs_deviation": self.max_abs_deviation,
                     "z": self.z,
+                    "mean": self.mean,
+                    "sd": self.sd,
                     "rejections": list(self.rejections),
                     "warnings": list(self.warnings),
                 }
@@ -292,6 +298,8 @@ def run_qc(
         rejections=tuple(multirule.details.get("rejections", ())),
         warnings=tuple(multirule.details.get("warnings", ())),
         z=multirule.details.get("z"),
+        mean=multirule.details.get("mean"),
+        sd=multirule.details.get("sd"),
         history=ctx.history,
         run_at=now,
         ledger_entries_before=len(entries),

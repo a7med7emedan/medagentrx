@@ -29,6 +29,7 @@ import matplotlib as mpl
 from matplotlib import font_manager
 from matplotlib.backends.backend_svg import FigureCanvasSVG
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 
 for _font in sorted((Path(mpl.get_data_path()) / "fonts" / "ttf").glob("DejaVuSans*.ttf")):
     font_manager.fontManager.addfont(str(_font))
@@ -181,6 +182,90 @@ def timeline(
     return SvgFigure(
         "timeline", "Update timeline", svg, f"AUROC by version: {described}.{anchor_text}"
     )
+
+
+def levey_jennings(
+    runs: Sequence[dict[str, Any]], *, mean: float | None, sd: float | None
+) -> SvgFigure:
+    """Levey-Jennings chart of the QC run bias, oldest run first.
+
+    Args:
+        runs: Per run: ``bias``, ``in_control`` and optionally ``current`` and
+            ``rules`` (the rules that fired on it).
+        mean: Target bias, or None while the baseline is being collected.
+        sd: SD of the bias, or None while the baseline is being collected.
+    """
+    with mpl.rc_context(_RC):
+        fig = _figure(6.4, 3.2)
+        ax = fig.add_subplot()
+        xs = list(range(1, len(runs) + 1))
+        scaled = mean is not None and sd is not None and sd > 0.0
+        if scaled:
+            values = [(r["bias"] - mean) / sd for r in runs]
+            for k, style in ((3, ":"), (2, "--"), (1, "-")):
+                for sign in (1, -1):
+                    ax.axhline(
+                        sign * k, color=RED if k == 3 else GREY, linewidth=0.8, linestyle=style
+                    )
+            ax.axhline(0.0, color=TEAL, linewidth=1.2)
+            ax.set_yticks(
+                [-3, -2, -1, 0, 1, 2, 3],
+                ["-3 SD", "-2 SD", "-1 SD", "mean", "+1 SD", "+2 SD", "+3 SD"],
+            )
+            low = min([-3.5, *values])
+            high = max([3.5, *values])
+            ax.set_ylim(low - 0.3, high + 0.3)
+            ax.set_ylabel("Run bias")
+        else:
+            values = [float(r["bias"]) for r in runs]
+            ax.axhline(0.0, color=TEAL, linewidth=1.2)
+            ax.set_ylabel("Run bias (live minus expected)")
+            ax.ticklabel_format(axis="y", style="sci", scilimits=(-3, 3))
+        ax.plot(xs, values, color=GREY, linewidth=0.8)
+        seen: set[str] = set()
+        for x, value, run in zip(xs, values, runs, strict=True):
+            if not run["in_control"]:
+                label, colour, marker = "Rejected", RED, "s"
+            elif run.get("rules"):
+                label, colour, marker = "Warning", AMBER, "^"
+            else:
+                label, colour, marker = "In control", GREEN, "o"
+            size = 9 if run.get("current") else 6
+            ax.plot(
+                [x],
+                [value],
+                marker=marker,
+                color=colour,
+                markersize=size,
+                linestyle="none",
+                label=label if label not in seen else None,
+            )
+            seen.add(label)
+            if run.get("current") and run.get("rules"):
+                ax.annotate(
+                    ", ".join(run["rules"]),
+                    (x, value),
+                    textcoords="offset points",
+                    xytext=(6, 6),
+                    fontsize=8,
+                    color=SLATE,
+                )
+        ax.set_xlabel("QC run")
+        ax.set_xlim(0.5, max(len(runs), 1) + 0.5)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_title("Levey-Jennings chart of the run bias")
+        ax.legend(loc="lower left", fontsize=8, ncols=3)
+        svg = _render(fig)
+    rejected = sum(1 for r in runs if not r["in_control"])
+    scale = "in SD from the target mean" if scaled else "before the baseline is complete"
+    current = next((r for r in runs if r.get("current")), None)
+    fired = (
+        f" The latest run fired {', '.join(current['rules'])}."
+        if current and current.get("rules")
+        else ""
+    )
+    alt = f"Run bias of {len(runs)} QC runs {scale}; {rejected} rejected.{fired}"
+    return SvgFigure("levey_jennings", "Levey-Jennings chart", svg, alt)
 
 
 def forest(subgroups: Sequence[dict[str, Any]], *, max_drop: float) -> SvgFigure:

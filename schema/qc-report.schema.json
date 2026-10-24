@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:medagentrx:qc-report:1",
+  "title": "MedAgentRx deployment QC report",
+  "description": "Machine-readable result of one deployment QC run (report_schema 1). Non-finite numbers are written as the strings Infinity, -Infinity or NaN.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_schema",
+    "kind",
+    "verdict",
+    "exit_code",
+    "plan",
+    "model_version",
+    "released_version",
+    "run_at",
+    "inputs",
+    "qc",
+    "history",
+    "tool_version",
+    "notes",
+    "checks",
+    "ledger",
+    "disclaimer"
+  ],
+  "properties": {
+    "report_schema": {
+      "const": 1,
+      "description": "Version of this report format."
+    },
+    "kind": {
+      "const": "qc"
+    },
+    "verdict": {
+      "enum": [
+        "IN_CONTROL",
+        "OUTSIDE_PLAN"
+      ]
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        2
+      ]
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "revision",
+        "fingerprint"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "model_version": {
+      "type": "string",
+      "description": "Version the live system reports."
+    },
+    "released_version": {
+      "type": "string",
+      "description": "Latest released version in the ledger, or the anchor version."
+    },
+    "run_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "inputs": {
+      "type": "object",
+      "description": "SHA-256 of every input file by role.",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "qc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bias",
+        "max_abs_deviation",
+        "z",
+        "mean",
+        "sd",
+        "rejections",
+        "warnings"
+      ],
+      "properties": {
+        "bias": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ],
+          "description": "A number; non-finite values are the strings Infinity, -Infinity or NaN."
+        },
+        "max_abs_deviation": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ],
+          "description": "A number; non-finite values are the strings Infinity, -Infinity or NaN."
+        },
+        "z": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ],
+          "description": "A number; non-finite values are the strings Infinity, -Infinity or NaN."
+        },
+        "mean": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ],
+          "description": "A number; non-finite values are the strings Infinity, -Infinity or NaN."
+        },
+        "sd": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ],
+          "description": "A number; non-finite values are the strings Infinity, -Infinity or NaN."
+        },
+        "rejections": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "1_3s",
+              "2_2s",
+              "R_4s",
+              "10_x"
+            ]
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "1_2s"
+            ]
+          }
+        }
+      }
+    },
+    "history": {
+      "type": "array",
+      "description": "Earlier measured QC runs of this version, oldest first.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "seq",
+          "recorded_at",
+          "bias",
+          "in_control"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "bias": {
+            "type": "number"
+          },
+          "in_control": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "tool_version": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "family",
+          "breaks",
+          "cross_reference",
+          "status",
+          "message",
+          "details"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^LIVE-[0-9]{3}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "family": {
+            "const": "LIVE"
+          },
+          "breaks": {
+            "enum": [
+              "OUTSIDE_PLAN",
+              "FAILED",
+              "WARNING"
+            ]
+          },
+          "cross_reference": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "warn",
+              "not_applicable",
+              "skipped"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "ledger": {
+      "description": "Ledger entry written for this evaluation, or null if none was written.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seq",
+            "hash"
+          ],
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "disclaimer": {
+      "type": "string"
+    }
+  }
+}
