@@ -36,7 +36,10 @@ def _timeline_points(report: dict[str, Any], entries: list[dict[str, Any]]) -> l
     plan_id = report["plan"]["id"]
     points = []
     for entry in entries:
-        if entry.get("plan", {}).get("id") != plan_id or "verdict" not in entry:
+        if entry.get("plan", {}).get("id") != plan_id or entry.get("kind", "evaluation") not in (
+            "evaluation",
+            "guard",
+        ):
             continue
         auc = (entry.get("metrics") or {}).get("auc") or {}
         candidate = auc.get("candidate")
