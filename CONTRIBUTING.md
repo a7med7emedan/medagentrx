@@ -32,6 +32,19 @@ uv run reuse lint
 
 Write plain British English in short sentences, without em or en dashes. Commit messages have a short imperative subject line, a blank line, then why the change is needed.
 
+## Releasing
+
+Releases are made by the maintainer, never by a bot account.
+
+1. Set the version in `pyproject.toml`, `src/medagentrx/__init__.py`, `Dockerfile`, `CITATION.cff` and `codemeta.json`, and the date in `CHANGELOG.md`, `CITATION.cff` and `codemeta.json`. Merge it to `main` with green CI.
+2. Tag and push: `git tag -a vX.Y.Z -m "MedAgentRx X.Y.Z"` and `git push origin vX.Y.Z`. The release workflow publishes to PyPI and GHCR, and the docs workflow rebuilds the versioned site.
+3. When the release workflow is green, create the GitHub release from your own account with its files:
+
+```bash
+gh run download <release-run-id> --name dist --dir release
+gh release create vX.Y.Z release/dist/* release/dist-sbom.cdx.json --verify-tag --title "MedAgentRx X.Y.Z" --notes-file release/release-notes.md
+```
+
 ## Changes to the plan format
 
 The change-plan format is versioned by `pccp_version`. See [GOVERNANCE.md](GOVERNANCE.md) for how changes to it are decided.

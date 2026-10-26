@@ -1,6 +1,0 @@
-{
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", "docker:pinDigests"],
-  "schedule": ["before 6am on monday"],
-  "lockFileMaintenance": {"enabled": true}
-}

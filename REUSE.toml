@@ -15,7 +15,6 @@ path = [
     "docs/assets/*.png",
     "docs/assets/*.gif",
     "codemeta.json",
-    "renovate.json",
     "examples/**/*.txt",
     "examples/**/*.parquet",
     "src/medagentrx/demo/intended-use.txt",
