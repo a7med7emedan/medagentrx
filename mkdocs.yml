@@ -53,12 +53,15 @@ markdown_extensions:
 nav:
   - Start here: index.md
   - Quickstart: quickstart.md
+  - Tutorial: tutorial.md
   - For agents and AutoML: agents.md
   - Deployment QC: qc.md
   - Reference:
       - Change plan: plan-reference.md
       - Checks catalogue: checks.md
       - Command line: cli.md
+      - Command-line reference: cli-reference.md
+      - Python API: api.md
       - Test-set fingerprint: fingerprint.md
       - Decision ledger: ledger.md
   - Methods and validation:
@@ -70,4 +73,5 @@ nav:
   - Security:
       - Threat model: threat-model.md
   - FAQ: faq.md
+  - Glossary: glossary.md
   - Roadmap: roadmap.md

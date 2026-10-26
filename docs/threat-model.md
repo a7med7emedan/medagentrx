@@ -32,6 +32,10 @@ MedAgentRx reads files that people and agents control, and its verdict decides w
 | Changed test labels or a different test set | Tampering | Canonical test-set fingerprint pinned in the plan (DATA-001) | `io/fingerprint.py` |
 | Live stack changed without a declared update (library, runtime, hardware, preprocessing, or an unreleased version) | Tampering | Deployment QC: control records scored by the live system on a schedule, checked by version, binding, per-record tolerance and multirule QC (LIVE-001 to LIVE-004) | `qc.py`, `checks/live_checks.py` |
 | Plan changed without a new revision | Tampering, repudiation | Plan fingerprint recorded in the ledger and compared (PLAN-001) | `checks/plan_checks.py` |
+| Webhook URL leaks, or the notification is sent somewhere else | Information disclosure | Notifications are off unless a URL is given; HTTPS only; redirects refused; the URL is never printed, reported or recorded; the message carries no data rows | `notify.py` |
+| Settings file sets a dangerous default without notice | Tampering | Settings are read only from the current folder or a named file; unknown keys are refused; command-line options and environment variables win | `settings.py` |
+| Evidence bundle altered after it was made, or a crafted zip attacks the reviewer | Tampering, denial of service | Manifest of SHA-256 hashes checked file by file; ledger chain recomputed; unsafe names, oversized members and unlisted files refused; nothing extracted except the ledger, into a temporary folder | `bundle.py` |
+| Exported ledger runs a formula in a spreadsheet | Elevation of privilege | Text cells that start like a formula are quoted | `export.py` |
 | Dashboard exposed to a network | Information disclosure | Read-only GET routes, no cookies, strict security headers; binds to 127.0.0.1 and warns loudly otherwise | `web/` |
 | Compromised dependency or image | Tampering | Locked dependencies; pip-audit, CodeQL, Trivy and OpenSSF Scorecard in CI; base images pinned by digest; image signed and shipped with an SBOM and provenance | CI, `Dockerfile` |
 
@@ -43,4 +47,5 @@ MedAgentRx reads files that people and agents control, and its verdict decides w
 - Whoever holds the signing key can sign a rewritten head. Keep the key with a party that does not train or submit models, such as a protected CI secret.
 - The tool trusts that prediction files come from the models they claim to. Model provenance is the quality system's job.
 - In thresholdout mode each look still leaks a little information. The look budget bounds the total.
+- An evidence bundle proves its files match its own manifest, not who made it. Send the ledger's public key, or the plan that pins it, by a separate channel, and check the bundle with `--public-key`.
 - Deployment QC trusts that the live score file came from the live system. A scheduler that replays an old score file would hide a change. Run the QC job where the people who change the deployment cannot alter its output, and compare the score file's SHA-256 across runs: a noisy stack never produces the same file twice.

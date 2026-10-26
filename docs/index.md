@@ -45,8 +45,10 @@ Every evaluation, failures included, is written to a hash-chained [decision ledg
 ## Where next
 
 - [Quickstart](quickstart.md): run the synthetic demo, then your own plan.
+- [Tutorial](tutorial.md): take one update from plan to evidence, step by step.
 - [For agents and AutoML](agents.md): the guard that keeps an agent inside the plan.
-- [For reviewers](reviewers.md): read a report and verify a ledger.
+- [For reviewers](reviewers.md): verify an evidence bundle, read a report and verify a ledger.
+- [Glossary](glossary.md): the terms these pages use, in plain words.
 
 !!! note "Disclaimer"
     MedAgentRx supports a quality management system. It is not legal or regulatory advice, does not replace your QMS or regulatory strategy, and its output is not itself a regulatory submission.

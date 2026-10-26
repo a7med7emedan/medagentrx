@@ -92,6 +92,8 @@ The outputs match `medagentrx check`: an HTML report with a Levey-Jennings chart
 
 From Python, `medagentrx.qc(...)` does the same, and `Guard.qc(...)` serves agents that operate the deployment.
 
+To hear about a run that needs attention, set `MEDAGENTRX_NOTIFY_URL` to a Slack or Teams webhook. `qc run` then posts a message whenever a run is OUTSIDE_PLAN or a rule warns. The GitHub Action runs without network and sends nothing; the [CI guides](ci.md#notifications) show how to notify from GitHub. See [notifications](cli.md#notifications).
+
 QC runs never touch the locked test set, so they spend none of its evaluations.
 
 ## After a new release

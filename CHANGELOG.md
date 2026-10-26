@@ -19,6 +19,16 @@ All notable changes are recorded here. The format follows Keep a Changelog, and 
 - QC reports in HTML, JSON with a published schema, Markdown and JUnit, with a Levey-Jennings chart. The dashboard gains a QC page and lists QC runs in the timeline. The PCCP document gains a deployment QC section.
 - A `mode: qc` input for the GitHub Action and the GitLab component; `check` stays the default.
 - Eight planted QC scenarios in `medagentrx demo`, QC files and a scheduled workflow in the example, and a simulation of false alarms and detection in the validation results.
+- `medagentrx preflight` checks an update's input files and the budgets left without evaluating it, so a mistake never costs a look at the locked test set.
+- `medagentrx explain` prints what a check enforces, or lists every check.
+- `medagentrx plan-diff` shows what changed between two plans, key by key.
+- `medagentrx bundle create` writes an evidence bundle: the plan and its PCCP document, the ledger and the reports in one zip, with a manifest of SHA-256 hashes. `medagentrx bundle verify` checks a received bundle.
+- `medagentrx ledger export` writes every ledger entry as a CSV or JSON table, quoting text a spreadsheet would run as a formula.
+- `--json` output for `check`, `qc run`, `preflight`, `validate`, `plan-diff`, `explain` and `bundle verify`.
+- Notifications: `check` and `qc run` post a short message to a Slack, Microsoft Teams or JSON webhook when a verdict needs attention, with `--notify` or `MEDAGENTRX_NOTIFY_URL`. It is off unless a URL is given, HTTPS only, and never carries data rows.
+- Settings files: option defaults from `medagentrx.toml`, or `[tool.medagentrx]` in `pyproject.toml`, so a routine run is `medagentrx check`.
+- Global options `--version`, `--quiet` and `--verbose`, and shell tab completion with `medagentrx --install-completion`.
+- Documentation: a tutorial from plan to evidence, a glossary, a command-line reference generated from the parser, a Python API reference generated from the docstrings, and versioned documentation with a version menu. Links to the unversioned pages keep working.
 
 ### Changed
 

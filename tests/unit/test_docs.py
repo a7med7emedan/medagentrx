@@ -72,13 +72,41 @@ def test_generated_pages_are_current() -> None:
         encoding="utf-8"
     ) == make_docs.plan_reference()
     assert (REPO_ROOT / "docs" / "checks.md").read_text(encoding="utf-8") == make_docs.checks_page()
+    assert (REPO_ROOT / "docs" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    ) == make_docs.cli_reference()
+    assert (REPO_ROOT / "docs" / "api.md").read_text(encoding="utf-8") == make_docs.api_reference()
+
+
+def test_cli_reference_covers_every_command() -> None:
+    import typer
+
+    from medagentrx.cli import app
+
+    page = (REPO_ROOT / "docs" / "cli-reference.md").read_text(encoding="utf-8")
+    root = typer.main.get_command(app)
+    for name, command in root.commands.items():  # type: ignore[attr-defined]
+        subcommands = getattr(command, "commands", None) or {"": command}
+        for sub in subcommands:
+            title = " ".join(part for part in ("## medagentrx", name, sub) if part)
+            assert title in page, title
 
 
 def test_every_docs_page_is_in_the_navigation() -> None:
     nav = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     for page in sorted((REPO_ROOT / "docs").glob("*.md")):
         if (
-            page.name in {"fingerprint.md", "ledger.md", "agents.md", "methods.md"}
+            page.name
+            in {
+                "fingerprint.md",
+                "ledger.md",
+                "agents.md",
+                "methods.md",
+                "tutorial.md",
+                "glossary.md",
+                "cli-reference.md",
+                "api.md",
+            }
             or page.name in nav
         ):
             assert page.name in nav, page.name

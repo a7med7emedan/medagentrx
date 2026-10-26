@@ -73,6 +73,19 @@ ledger: entry 0 3dbcd0bb2b0b
 
 The exit code is the verdict: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input error. `report/` holds a self-contained HTML report, JSON, a Markdown summary and JUnit XML. MedAgentRx reads prediction files only and never loads a model binary.
 
+`medagentrx preflight` checks the same inputs first without spending a look at the test set. A `medagentrx.toml` settings file shortens a routine run to `medagentrx check`, and `--json` gives the result to scripts and agents. The [tutorial](https://a7med7emedan.github.io/medagentrx/tutorial/) takes one update from plan to evidence, and the [command-line reference](https://a7med7emedan.github.io/medagentrx/cli-reference/) lists every option.
+
+## Evidence for reviewers
+
+```bash
+medagentrx bundle create --plan change-plan.yaml --ledger ledger.jsonl --reports report/ --out evidence.zip
+medagentrx bundle verify evidence.zip            # run by the reviewer
+medagentrx plan-diff change-plan-r3.yaml change-plan-r4.yaml
+medagentrx ledger export ledger.jsonl --format csv --out decisions.csv
+```
+
+An evidence bundle holds the plan and its PCCP document, the ledger and the reports, with a manifest of SHA-256 hashes the reviewer checks in one command. `plan-diff` shows exactly what a revised plan changes, and the ledger export gives every decision as a spreadsheet. See [For reviewers](https://a7med7emedan.github.io/medagentrx/reviewers/).
+
 ## The plan
 
 ```yaml
@@ -119,7 +132,7 @@ medagentrx qc run change-plan.yaml --scores live-scores.parquet \
   --expected expected-2.0.0.parquet --model-version 2.0.0 --ledger ledger.jsonl --out qc-report/
 ```
 
-A run is **IN_CONTROL** (exit 0) or **OUTSIDE_PLAN** (exit 2): a shift with no listed modification behind it is an undeclared update. See [Deployment QC](https://a7med7emedan.github.io/medagentrx/qc/).
+A run is **IN_CONTROL** (exit 0) or **OUTSIDE_PLAN** (exit 2): a shift with no listed modification behind it is an undeclared update. Set `MEDAGENTRX_NOTIFY_URL` to a Slack or Teams webhook to hear about a run that needs attention. See [Deployment QC](https://a7med7emedan.github.io/medagentrx/qc/).
 
 ## Continuous integration
 
