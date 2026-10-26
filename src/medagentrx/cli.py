@@ -9,7 +9,9 @@ User mistakes are reported in plain text, never as a traceback.
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -24,8 +26,12 @@ from medagentrx.plan import load_plan_with_warnings, parse_plan_text, plan_finge
 from medagentrx.plan.schema import plan_json_schema_text
 from medagentrx.plan.template import PlanAnswers, render_plan_template
 
+DOCS_URL = "https://a7med7emedan.github.io/medagentrx/"
+
 if TYPE_CHECKING:
+    from medagentrx.checks import Finding
     from medagentrx.engine import Evaluation
+    from medagentrx.notify import Notice
 
 app = typer.Typer(
     name="medagentrx",
@@ -34,15 +40,41 @@ app = typer.Typer(
         "against its approved change plan."
     ),
     no_args_is_help=True,
-    add_completion=False,
     pretty_exceptions_enable=False,
 )
 
 
+@dataclass
+class _Output:
+    quiet: bool = False
+    verbose: bool = False
+
+
+_OUTPUT = _Output()
+
+
+def _say(message: str) -> None:
+    """Print progress and summary lines, unless --quiet was given."""
+    if not _OUTPUT.quiet:
+        typer.echo(message)
+
+
+def _json(data: object) -> None:
+    typer.echo(json.dumps(data, indent=2, ensure_ascii=False))
+
+
 def run() -> None:
     """Console entry point. Maps usage errors to exit code 3."""
+    from medagentrx.settings import SettingsError, default_map, find_settings
+
     try:
-        code = app(standalone_mode=False)
+        settings = find_settings()
+        defaults = default_map(typer.main.get_command(app), settings) if settings.values else {}
+    except SettingsError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        sys.exit(ExitCode.USAGE_ERROR)
+    try:
+        code = app(standalone_mode=False, default_map=defaults)
     except typer.Abort:
         typer.echo("Aborted.", err=True)
         code = ExitCode.USAGE_ERROR
@@ -61,9 +93,46 @@ def _fail(exc: MedAgentRxError) -> typer.Exit:
     return typer.Exit(ExitCode.USAGE_ERROR)
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"medagentrx {__version__}")
+        raise typer.Exit
+
+
 @app.callback()
-def main() -> None:
-    """Check every model update against its approved change plan."""
+def main(
+    show_version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-V",
+            is_eager=True,
+            callback=_version_callback,
+            help="Print the version and exit.",
+        ),
+    ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet", "-q", help="Print only errors and requested output; exit codes still tell."
+        ),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", help="Print every check, not only failures and warnings."),
+    ] = False,
+) -> None:
+    """Check every model update against its approved change plan.
+
+    Settings in medagentrx.toml, or [tool.medagentrx] in pyproject.toml, give
+    option defaults; see the command-line documentation.
+    """
+    del show_version
+    if quiet and verbose:
+        typer.echo("error: --quiet and --verbose cannot be used together", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    _OUTPUT.quiet = quiet
+    _OUTPUT.verbose = verbose
 
 
 @app.command()
@@ -78,6 +147,11 @@ def schema() -> None:
     typer.echo(plan_json_schema_text(), nl=False)
 
 
+JsonOption = Annotated[
+    bool, typer.Option("--json", help="Print the result as JSON on stdout, for scripts and agents.")
+]
+
+
 @app.command()
 def validate(
     plans: Annotated[
@@ -86,26 +160,45 @@ def validate(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Also print the plan fingerprint.")
     ] = False,
+    as_json: JsonOption = False,
 ) -> None:
     """Check change plans against the schema and their own logic.
 
     Exit codes: 0 every plan is valid, 3 at least one is not.
     """
     failed = False
+    results: list[dict[str, object]] = []
     for plan in plans:
         prefix = f"{plan}: " if len(plans) > 1 else ""
         try:
             loaded = load_plan_with_warnings(plan)
         except MedAgentRxError as exc:
-            typer.echo(f"error: {exc}", err=True)
             failed = True
+            if as_json:
+                results.append({"plan": str(plan), "valid": False, "error": str(exc)})
+            else:
+                typer.echo(f"error: {exc}", err=True)
             continue
         header = loaded.plan.plan
-        typer.echo(f"{prefix}valid: {header.id} revision {header.revision}")
+        if as_json:
+            results.append(
+                {
+                    "plan": str(plan),
+                    "valid": True,
+                    "id": header.id,
+                    "revision": header.revision,
+                    "fingerprint": plan_fingerprint(loaded.plan),
+                    "warnings": [str(w) for w in loaded.warnings],
+                }
+            )
+            continue
+        _say(f"{prefix}valid: {header.id} revision {header.revision}")
         for warning in loaded.warnings:
-            typer.echo(f"{prefix}warning: {warning}")
-        if verbose:
-            typer.echo(f"{prefix}plan fingerprint: {plan_fingerprint(loaded.plan)}")
+            typer.echo(f"{prefix}warning: {warning}", err=_OUTPUT.quiet)
+        if verbose or _OUTPUT.verbose:
+            _say(f"{prefix}plan fingerprint: {plan_fingerprint(loaded.plan)}")
+    if as_json:
+        _json(results)
     if failed:
         raise typer.Exit(ExitCode.USAGE_ERROR)
 
@@ -124,6 +217,65 @@ MaxFileBytesOption = Annotated[
 MaxRowsOption = Annotated[
     int, typer.Option("--max-rows", min=1, help="Largest number of rows in one input file.")
 ]
+NotifyOption = Annotated[
+    str | None,
+    typer.Option(
+        "--notify",
+        envvar="MEDAGENTRX_NOTIFY_URL",
+        show_envvar=True,
+        metavar="URL",
+        help="HTTPS webhook (Slack, Teams or any JSON endpoint) told about the verdict.",
+    ),
+]
+NotifyOnOption = Annotated[
+    str,
+    typer.Option(
+        "--notify-on",
+        metavar="WHEN",
+        help="problems: only when the verdict is not good or a check warns; always: every run.",
+    ),
+]
+NotifyFormatOption = Annotated[
+    str,
+    typer.Option(
+        "--notify-format",
+        metavar="FORMAT",
+        help="auto (from the URL), slack, teams or json.",
+    ),
+]
+
+
+def _notify_settings(url: str | None, when: str, fmt: str) -> None:
+    """Refuse bad notification options before any work is done."""
+    from medagentrx.notify import check_url
+
+    if when not in ("problems", "always"):
+        typer.echo(f"error: --notify-on must be problems or always, got {when!r}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    if fmt not in ("auto", "slack", "teams", "json"):
+        typer.echo(
+            f"error: --notify-format must be auto, slack, teams or json, got {fmt!r}", err=True
+        )
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    if url is not None:
+        try:
+            check_url(url)
+        except MedAgentRxError as exc:
+            raise _fail(exc) from None
+
+
+def _notify(url: str | None, when: str, fmt: str, notice: Notice) -> None:
+    """Send the notification; a failure is a warning, never a different exit code."""
+    from medagentrx.notify import send, should_send
+
+    if url is None or not should_send(notice, when):  # type: ignore[arg-type]
+        return
+    try:
+        host = send(url, notice, fmt=fmt)  # type: ignore[arg-type]
+    except MedAgentRxError as exc:
+        typer.echo(f"warning: notification not sent: {exc}", err=True)
+        return
+    _say(f"notified: {host}")
 
 
 @app.command()
@@ -264,14 +416,22 @@ def check(
     signing_key: SigningKeyOption = None,
     max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
     max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+    as_json: JsonOption = False,
+    notify: NotifyOption = None,
+    notify_on: NotifyOnOption = "problems",
+    notify_format: NotifyFormatOption = "auto",
 ) -> None:
     """Check one model update against its change plan and record the decision.
+
+    Run medagentrx preflight first to check the input files without spending a look.
 
     Exit codes: 0 ACCEPTED, 1 FAILED, 2 OUTSIDE_PLAN, 3 input or usage error.
     """
     from medagentrx.api import check as run_check
+    from medagentrx.notify import notice_for
     from medagentrx.report.writer import parse_formats
 
+    _notify_settings(notify, notify_on, notify_format)
     limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
     try:
         result = run_check(
@@ -292,19 +452,230 @@ def check(
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     evaluation, entry, written = result.evaluation, result.ledger_entry, result.reports
-    _print_summary(evaluation)
-    for path in written.values():
-        typer.echo(f"report: {path}")
-    if entry is not None:
-        typer.echo(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    if as_json:
+        _json(
+            {
+                "verdict": evaluation.verdict.value,
+                "exit_code": int(evaluation.exit_code),
+                "plan": {
+                    "id": evaluation.plan_id,
+                    "revision": evaluation.plan_revision,
+                    "fingerprint": evaluation.plan_fingerprint,
+                },
+                "candidate_version": evaluation.candidate_version,
+                "previous_version": evaluation.previous_version,
+                "touched_test_set": evaluation.touched_test_set,
+                "checks": _findings_json(evaluation.findings),
+                "notes": list(evaluation.notes),
+                "reports": {fmt: str(path) for fmt, path in written.items()},
+                "ledger_entry": None
+                if entry is None
+                else {"seq": entry["seq"], "hash": entry["hash"]},
+            }
+        )
+    else:
+        _say(f"verdict: {evaluation.verdict.value}")
+        _print_findings(evaluation.findings)
+        for path in written.values():
+            _say(f"report: {path}")
+        if entry is not None:
+            _say(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    _notify(
+        notify,
+        notify_on,
+        notify_format,
+        notice_for(
+            "check",
+            evaluation.verdict.value,
+            plan_id=evaluation.plan_id,
+            plan_revision=evaluation.plan_revision,
+            version=evaluation.candidate_version,
+            findings=evaluation.findings,
+        ),
+    )
     raise typer.Exit(evaluation.exit_code)
 
 
-def _print_summary(evaluation: Evaluation) -> None:
-    typer.echo(f"verdict: {evaluation.verdict.value}")
-    for finding in evaluation.findings:
-        if finding.status.value in ("fail", "warn"):
-            typer.echo(f"  {finding.status.value.upper():4} {finding.check_id}: {finding.message}")
+def _findings_json(findings: tuple[Finding, ...]) -> list[dict[str, str]]:
+    return [{"id": f.check_id, "status": f.status.value, "message": f.message} for f in findings]
+
+
+def _print_findings(findings: tuple[Finding, ...]) -> None:
+    shown = ("fail", "warn") if not _OUTPUT.verbose else None
+    for finding in findings:
+        status = finding.status.value
+        if shown is None or status in shown:
+            label = {"not_applicable": "N/A", "skipped": "SKIP"}.get(status, status.upper())
+            _say(f"  {label:4} {finding.check_id}: {finding.message}")
+
+
+@app.command()
+def preflight(
+    plan: Annotated[Path, typer.Argument(help="Path to change-plan.yaml.", metavar="PLAN")],
+    candidate: Annotated[Path, typer.Option("--candidate", help="Candidate predictions.")],
+    previous: Annotated[
+        Path, typer.Option("--previous", help="Predictions of the version replaced.")
+    ],
+    anchor: Annotated[
+        Path, typer.Option("--anchor", help="Predictions of the authorised version.")
+    ],
+    manifest: Annotated[Path, typer.Option("--manifest", help="Training data manifest.")],
+    model_meta: Annotated[Path, typer.Option("--model-meta", help="Candidate model.yaml.")],
+    ledger: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="Decision ledger: verify it and report the budgets left."),
+    ] = None,
+    public_key: Annotated[
+        Path | None,
+        typer.Option("--public-key", help="Require a valid ledger head signature by this key."),
+    ] = None,
+    max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
+    max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+    as_json: JsonOption = False,
+) -> None:
+    """Check an update's input files without evaluating it.
+
+    Reads every file medagentrx check would read and checks its structure. It
+    computes no metric, spends no look at the locked test set and records
+    nothing, so it can run as often as needed.
+
+    Exit codes: 0 ready, 1 not ready, 3 usage error.
+    """
+    from medagentrx.preflight import preflight as run_preflight
+    from medagentrx.signing import load_public_key
+
+    try:
+        key = load_public_key(public_key) if public_key is not None else None
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    result = run_preflight(
+        plan=plan,
+        candidate=candidate,
+        previous=previous,
+        anchor=anchor,
+        manifest=manifest,
+        model_meta=model_meta,
+        ledger=ledger,
+        public_key=key,
+        limits=Limits(max_file_bytes=max_file_bytes, max_rows=max_rows),
+    )
+    if as_json:
+        _json(result.to_dict())
+    else:
+        for item in result.items:
+            line = f"  {'ok' if item.ok else 'PROBLEM':7} {item.name}: {item.message}"
+            if item.ok:
+                _say(line)
+            else:
+                typer.echo(line, err=_OUTPUT.quiet)
+        for warning in result.warnings:
+            _say(f"  warning: {warning}")
+        _say("ready: medagentrx check can run" if result.ready else "not ready")
+    raise typer.Exit(result.exit_code)
+
+
+@app.command()
+def explain(
+    check_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Check identifiers, for example PERF-001.", metavar="CHECK..."),
+    ] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Explain what a check enforces, or list every check.
+
+    Exit codes: 0 success, 3 unknown check.
+    """
+    import difflib
+    import inspect
+
+    from medagentrx.checks import catalogue
+
+    specs = {spec.check_id: spec for spec in catalogue()}
+    wanted = [c.strip().upper() for c in check_ids or []]
+    unknown = [c for c in wanted if c not in specs]
+    if unknown:
+        for name in unknown:
+            close = difflib.get_close_matches(name, list(specs), n=3)
+            hint = f"; did you mean {', '.join(close)}?" if close else ""
+            typer.echo(f"error: unknown check {name}{hint}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    chosen = [specs[c] for c in wanted] if wanted else list(specs.values())
+    records = [
+        {
+            "id": spec.check_id,
+            "family": spec.family.value,
+            "title": spec.title,
+            "if_it_fails": spec.breaks.value,
+            "cross_reference": spec.cross_reference,
+            "explanation": inspect.cleandoc(spec.run.__doc__ or ""),
+        }
+        for spec in chosen
+    ]
+    if as_json:
+        _json(records)
+        return
+    if not wanted:
+        for r in records:
+            typer.echo(f"{r['id']:9} {r['family']:5} {r['if_it_fails']:13} {r['title']}")
+        typer.echo("medagentrx explain CHECK prints one check in full.")
+        return
+    for index, r in enumerate(records):
+        if index:
+            typer.echo("")
+        typer.echo(f"{r['id']}: {r['title']}")
+        typer.echo(f"Family {r['family']}. If it fails: {r['if_it_fails'].replace('_', ' ')}.")
+        typer.echo(f"Cross-reference: {r['cross_reference']}")
+        typer.echo("")
+        typer.echo(r["explanation"])
+    typer.echo("")
+    typer.echo(f"More: {DOCS_URL}checks/")
+
+
+@app.command("plan-diff")
+def plan_diff(
+    old: Annotated[Path, typer.Argument(help="The earlier change plan.", metavar="OLD")],
+    new: Annotated[Path, typer.Argument(help="The later change plan.", metavar="NEW")],
+    as_json: JsonOption = False,
+) -> None:
+    """Show what changed between two change plans, key by key.
+
+    Comments, key order and quoting do not count: both plans are validated and
+    their meaning is compared. A new plan revision needs a new ledger.
+
+    Exit codes: 0 the plans mean the same, 1 they differ, 3 a plan is not valid.
+    """
+    from medagentrx.plan import load_plan
+    from medagentrx.plan.diff import diff_plans
+
+    try:
+        result = diff_plans(load_plan(old), load_plan(new))
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    if as_json:
+        _json(result.to_dict())
+        raise typer.Exit(0 if result.identical else 1)
+    if result.identical:
+        _say(f"the plans mean the same (fingerprint {result.old_fingerprint[:16]})")
+        return
+    for change in result.changes:
+        if change.kind == "added":
+            typer.echo(f"+ {change.path}: {json.dumps(change.new)}")
+        elif change.kind == "removed":
+            typer.echo(f"- {change.path}: {json.dumps(change.old)}")
+        else:
+            typer.echo(f"~ {change.path}: {json.dumps(change.old)} -> {json.dumps(change.new)}")
+    _say(
+        f"{len(result.changes)} change(s); fingerprint {result.old_fingerprint[:16]} -> "
+        f"{result.new_fingerprint[:16]}"
+    )
+    if result.revision_unchanged:
+        typer.echo(
+            "warning: the content changed but plan.revision did not; give the new plan a new "
+            "revision",
+            err=True,
+        )
+    raise typer.Exit(1)
 
 
 ledger_app = typer.Typer(
@@ -353,7 +724,7 @@ def ledger_verify(
         raise typer.Exit(1)
     if result.ok:
         signed = f", signature valid (key {str(fingerprint)[:16]})" if key is not None else ""
-        typer.echo(f"ok: {result.entries} entries, head {result.head}{signed}")
+        _say(f"ok: {result.entries} entries, head {result.head}{signed}")
         return
     typer.echo(f"ledger fails verification: {ledger}", err=True)
     for problem in result.problems:
@@ -415,9 +786,9 @@ def ledger_release(
         entry = record(ledger, "release", version, details=details, signing_key=key)
     except MedAgentRxError as exc:
         raise _fail(exc) from None
-    typer.echo(f"recorded the release of {version} as entry {entry['seq']}")
+    _say(f"recorded the release of {version} as entry {entry['seq']}")
     if qc_expected is not None:
-        typer.echo(f"with expected QC scores {details['qc_expected_sha256'][:12]}")
+        _say(f"with expected QC scores {details['qc_expected_sha256'][:12]}")
 
 
 @ledger_app.command("show")
@@ -461,6 +832,49 @@ def ledger_show(
         f"alpha spent: {history.alpha.spent if history.alpha else 0.0:.5f}; "
         f"QC runs: {len(qc_runs)} ({rejected} outside the plan)"
     )
+
+
+@ledger_app.command("export")
+def ledger_export(
+    ledger: Annotated[Path, typer.Argument(help="Path to ledger.jsonl.", metavar="LEDGER")],
+    export_format: Annotated[
+        str, typer.Option("--format", help="csv (for spreadsheets) or json.")
+    ] = "csv",
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", help="File to write. Defaults to standard output."),
+    ] = None,
+) -> None:
+    """Export every ledger entry as one table row, for audits and spreadsheets.
+
+    The ledger is verified first; a ledger that fails verification is not
+    exported. Text that a spreadsheet would run as a formula is quoted.
+    """
+    from medagentrx.export import export_ledger
+    from medagentrx.ledger import read_entries, verify
+
+    if export_format not in ("csv", "json"):
+        typer.echo(f"error: --format must be csv or json, got {export_format!r}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    if not ledger.is_file():
+        typer.echo(f"error: {ledger}: no such ledger", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    checked = verify(ledger)
+    if not checked.ok:
+        typer.echo(f"ledger fails verification: {ledger}", err=True)
+        for problem in checked.problems:
+            typer.echo(f"  - {problem}", err=True)
+        raise typer.Exit(1)
+    text = export_ledger(read_entries(ledger), export_format)  # type: ignore[arg-type]
+    if out is None:
+        typer.echo(text, nl=False)
+        return
+    if out.is_symlink():
+        typer.echo(f"error: {out} is a symbolic link; refusing to write through it", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    _say(f"wrote {out} ({checked.entries} entries)")
 
 
 qc_app = typer.Typer(
@@ -561,14 +975,20 @@ def qc_run_command(
     signing_key: SigningKeyOption = None,
     max_file_bytes: MaxFileBytesOption = DEFAULT_MAX_FILE_BYTES,
     max_rows: MaxRowsOption = DEFAULT_MAX_ROWS,
+    as_json: JsonOption = False,
+    notify: NotifyOption = None,
+    notify_on: NotifyOnOption = "problems",
+    notify_format: NotifyFormatOption = "auto",
 ) -> None:
     """Judge one QC run of the live system and record it.
 
     Exit codes: 0 IN_CONTROL, 2 OUTSIDE_PLAN, 3 input or usage error.
     """
     from medagentrx.api import qc as run_qc_api
+    from medagentrx.notify import notice_for
     from medagentrx.report.writer import parse_formats
 
+    _notify_settings(notify, notify_on, notify_format)
     limits = Limits(max_file_bytes=max_file_bytes, max_rows=max_rows)
     try:
         result = run_qc_api(
@@ -586,17 +1006,142 @@ def qc_run_command(
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     run = result.run
-    typer.echo(f"qc verdict: {run.verdict.value}")
-    for finding in run.findings:
-        if finding.status.value in ("fail", "warn"):
-            typer.echo(f"  {finding.status.value.upper():4} {finding.check_id}: {finding.message}")
-    for note in run.notes:
-        typer.echo(f"  NOTE {note}")
-    for path in result.reports.values():
-        typer.echo(f"report: {path}")
     entry = result.ledger_entry
-    typer.echo(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    if as_json:
+        _json(
+            {
+                "verdict": run.verdict.value,
+                "exit_code": int(run.exit_code),
+                "plan": {
+                    "id": run.plan_id,
+                    "revision": run.plan_revision,
+                    "fingerprint": run.plan_fingerprint,
+                },
+                "model_version": run.model_version,
+                "released_version": run.released_version,
+                "bias": run.bias,
+                "max_abs_deviation": run.max_abs_deviation,
+                "rejections": list(run.rejections),
+                "warnings": list(run.warnings),
+                "checks": _findings_json(run.findings),
+                "notes": list(run.notes),
+                "reports": {fmt: str(path) for fmt, path in result.reports.items()},
+                "ledger_entry": {"seq": entry["seq"], "hash": entry["hash"]},
+            }
+        )
+    else:
+        _say(f"qc verdict: {run.verdict.value}")
+        _print_findings(run.findings)
+        for note in run.notes:
+            _say(f"  NOTE {note}")
+        for path in result.reports.values():
+            _say(f"report: {path}")
+        _say(f"ledger: entry {entry['seq']} {entry['hash'][:12]}")
+    _notify(
+        notify,
+        notify_on,
+        notify_format,
+        notice_for(
+            "qc run",
+            run.verdict.value,
+            plan_id=run.plan_id,
+            plan_revision=run.plan_revision,
+            version=run.model_version,
+            findings=run.findings,
+        ),
+    )
     raise typer.Exit(run.exit_code)
+
+
+bundle_app = typer.Typer(
+    help="Evidence bundles: the plan, ledger and reports in one checkable zip.",
+    no_args_is_help=True,
+)
+app.add_typer(bundle_app, name="bundle")
+
+
+@bundle_app.command("create")
+def bundle_create(
+    plan: Annotated[Path, typer.Option("--plan", help="Path to change-plan.yaml.")],
+    ledger: Annotated[Path, typer.Option("--ledger", help="Decision ledger.")],
+    out: Annotated[Path, typer.Option("--out", "-o", help="Zip file to write.")] = Path(
+        "medagentrx-evidence.zip"
+    ),
+    reports: Annotated[
+        list[Path] | None,
+        typer.Option("--reports", help="Folder of reports to include. Repeat for more."),
+    ] = None,
+    public_key: Annotated[
+        Path | None,
+        typer.Option(
+            "--public-key", help="Ledger signing public key; needed when the plan pins one."
+        ),
+    ] = None,
+) -> None:
+    """Write an evidence bundle for a reviewer, auditor or notified body.
+
+    The zip holds the plan and its PCCP document, the ledger and its head, the
+    public key and the reports, with MANIFEST.json listing the SHA-256 of every
+    file. Only an intact ledger is bundled.
+
+    Exit codes: 0 written, 1 the ledger fails verification, 3 input or usage error.
+    """
+    from medagentrx.bundle import BundleError, create_bundle
+
+    try:
+        result = create_bundle(
+            plan=plan,
+            ledger=ledger,
+            out=out,
+            reports=tuple(reports or ()),
+            public_key_file=public_key,
+        )
+    except BundleError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from None
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    _say(
+        f"wrote {result.path}: {len(result.files)} files, ledger of {result.ledger_entries} entries"
+    )
+
+
+@bundle_app.command("verify")
+def bundle_verify(
+    bundle: Annotated[Path, typer.Argument(help="Evidence bundle zip.", metavar="BUNDLE")],
+    public_key: Annotated[
+        Path | None,
+        typer.Option(
+            "--public-key", help="Also require a valid ledger head signature by this key."
+        ),
+    ] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Check a received bundle: every file against its SHA-256, and the ledger chain.
+
+    Exit codes: 0 intact, 1 it does not check out, 3 input or usage error.
+    """
+    from medagentrx.bundle import verify_bundle
+    from medagentrx.signing import load_public_key
+
+    try:
+        key = load_public_key(public_key) if public_key is not None else None
+        result = verify_bundle(bundle, public_key=key)
+    except MedAgentRxError as exc:
+        raise _fail(exc) from None
+    if as_json:
+        _json({"ok": result.ok, "files": result.files, "problems": list(result.problems)})
+    elif result.ok:
+        plan = result.manifest.get("plan", {})
+        _say(
+            f"ok: {result.files} files match the manifest; ledger intact; plan "
+            f"{plan.get('id')} revision {plan.get('revision')}"
+        )
+    else:
+        typer.echo(f"bundle does not check out: {bundle}", err=True)
+        for problem in result.problems:
+            typer.echo(f"  - {problem}", err=True)
+    raise typer.Exit(0 if result.ok else 1)
 
 
 @app.command("render-plan")
@@ -624,7 +1169,7 @@ def render_plan(
         for name in chosen:
             target = safe_output_path(out, f"pccp-document.{name}")
             target.write_text(renderers[name](document), encoding="utf-8")
-            typer.echo(f"wrote {target}")
+            _say(f"wrote {target}")
     except MedAgentRxError as exc:
         raise _fail(exc) from None
 
@@ -669,9 +1214,9 @@ def card(
             )
     except MedAgentRxError as exc:
         raise _fail(exc) from None
-    typer.echo(f"updated {written}")
+    _say(f"updated {written}")
     if ledger is not None:
-        typer.echo(f"recorded the card update for {loaded['candidate_version']} in {ledger}")
+        _say(f"recorded the card update for {loaded['candidate_version']} in {ledger}")
 
 
 @app.command()
@@ -717,16 +1262,14 @@ def demo(
         entries = read_entries(directory / "ledger.jsonl")
         write_qc_reports(directory / "report", run, entry=entry, entries=entries)
 
-    typer.echo("Synthetic data only. No real patient data is used.")
+    _say("Synthetic data only. No real patient data is used.")
     results: list[Any] = []
     if update_names or not qc_names:
         results += run_all(out, names=update_names or None, n_replicates=replicates, on_step=write)
     if qc_names or not update_names:
         results += run_all_qc(out, names=qc_names or None, on_step=write_qc)
     width = max(len(r.scenario.name) for r in results) + 1
-    typer.echo(
-        f"{'scenario':<{width}} {'steps':>5}  {'expected':<14} {'got':<14} {'checks':<17} ok"
-    )
+    _say(f"{'scenario':<{width}} {'steps':>5}  {'expected':<14} {'got':<14} {'checks':<17} ok")
     for result in results:
         rows: list[list[Any]] = []
         for step in result.steps:
@@ -745,9 +1288,9 @@ def demo(
                 rows.append([1, *row])
         for count, expected, got, checks, mark in rows:
             name = result.scenario.name
-            typer.echo(f"{name:<{width}} {count:>5}  {expected:<14} {got:<14} {checks:<17} {mark}")
+            _say(f"{name:<{width}} {count:>5}  {expected:<14} {got:<14} {checks:<17} {mark}")
     passed = sum(r.ok for r in results)
-    typer.echo(f"{passed} of {len(results)} scenarios gave their expected verdict. Files: {out}")
+    _say(f"{passed} of {len(results)} scenarios gave their expected verdict. Files: {out}")
     raise typer.Exit(0 if passed == len(results) else 1)
 
 
@@ -808,7 +1351,7 @@ def init(
     except MedAgentRxError as exc:
         raise _fail(exc) from None
     out.write_text(text, encoding="utf-8")
-    typer.echo(f"wrote {out}")
+    _say(f"wrote {out}")
     for warning in loaded.warnings:
         typer.echo(f"warning: {warning}")
 
