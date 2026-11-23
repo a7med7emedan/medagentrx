@@ -1,0 +1,11 @@
+# HIGH findings in the python:3.12-slim base with no Debian fix yet.
+# Each entry expires so the scan fails again and the finding is rechecked.
+
+# sqlite (libsqlite3-0): FTS5 and session changeset flaws.
+CVE-2026-119373 exp:2027-02-28
+CVE-2026-119374 exp:2027-02-28
+CVE-2026-119379 exp:2027-02-28
+
+# openssl (libssl3t64, openssl, openssl-provider-legacy): QUIC stream memory leak.
+# Python's ssl and hashlib modules need libssl, so it cannot be purged.
+CVE-2026-124709 exp:2027-02-28
