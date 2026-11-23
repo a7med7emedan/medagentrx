@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ahmed Hemedan
+# SPDX-License-Identifier: Apache-2.0
+
 # HIGH findings in the python:3.12-slim base with no Debian fix yet.
 # Each entry expires so the scan fails again and the finding is rechecked.
 
