@@ -271,7 +271,19 @@ def main() -> None:
         action="store_true",
         help="Redraw validation.svg from an existing validation.json without simulating.",
     )
+    parser.add_argument(
+        "--cells",
+        type=Path,
+        default=None,
+        help="Draw validation.svg from cells saved by the slow test, without simulating.",
+    )
     args = parser.parse_args()
+    if args.cells:
+        saved = json.loads(args.cells.read_text(encoding="utf-8"))
+        cells = [Cell(**c) for c in saved["cells"]]
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "validation.svg").write_text(figure(cells) + "\n", encoding="utf-8")
+        return
     if args.figure_only:
         saved = json.loads((args.out / "validation.json").read_text(encoding="utf-8"))
         cells = [Cell(**c) for c in saved["cells"]]
