@@ -17,6 +17,7 @@ data/
 /out/
 /report/
 /site/
+/validation-results/
 
 # Python
 __pycache__/

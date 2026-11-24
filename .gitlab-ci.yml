@@ -103,11 +103,11 @@ nightly-validation:
   stage: test
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
-  timeout: 2h
+  timeout: 3h
   script:
     - uv sync --locked
     - uv run pytest -m slow --no-cov tests/validation
-    - uv run python scripts/validation.py --out validation-results
+    - uv run python scripts/validation.py --out validation-results --cells validation-results/cells.json
   artifacts:
     paths:
       - validation-results/
