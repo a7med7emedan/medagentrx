@@ -40,8 +40,11 @@ COPY --from=build /opt/medagentrx /opt/medagentrx
 # and no fix yet: util-linux and mount tools, ncurses, bash, perl, apt,
 # systemd libraries and ACL support. /bin/sh (dash) stays for CI job
 # scripts; cp and mv no longer work because they need libacl.
+# zlib is upgraded first: the base still ships the build with CVE-2026-85091.
 # hadolint ignore=DL3059
-RUN rm -rf /var/lib/apt /var/cache/apt /var/log/* /usr/share/doc /usr/share/man \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1 \
+ && rm -rf /var/lib/apt /var/cache/apt /var/log/* /usr/share/doc /usr/share/man \
            /usr/local/lib/python3.12/site-packages/pip* /usr/local/bin/pip* \
  && dpkg --purge --no-triggers --force-remove-essential --force-remove-protected --force-depends \
       bash bsdutils login mount util-linux libmount1 libblkid1 libsmartcols1 liblastlog2-2 \
