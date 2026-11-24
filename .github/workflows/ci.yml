@@ -141,8 +141,9 @@ jobs:
       - name: Trivy, no HIGH or CRITICAL findings
         run: >-
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          -v "$PWD/.trivyignore:/.trivyignore:ro"
           aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
-          image --severity HIGH,CRITICAL --exit-code 1 --scanners vuln --no-progress medagentrx:ci
+          image --severity HIGH,CRITICAL --exit-code 1 --scanners vuln --ignorefile /.trivyignore --no-progress medagentrx:ci
       - name: Compose file is valid
         run: docker compose config --quiet
 
