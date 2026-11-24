@@ -8,8 +8,11 @@ A quick check of the simulation itself runs with every test run.
 """
 
 import importlib
+import json
 import math
+import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from types import ModuleType
 
@@ -57,6 +60,12 @@ def test_check_flags_cells_outside_the_bands() -> None:
 @pytest.mark.slow
 def test_type_i_error_and_coverage_across_the_grid(tmp_path: Path) -> None:
     cells = validation.run_grid()
+    # Read by scripts/validation.py --cells, so the nightly job does not rerun the grid.
+    out = Path(os.environ.get("VALIDATION_CELLS", REPO_ROOT / "validation-results" / "cells.json"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps({"cells": [asdict(c) for c in cells]}, indent=2) + "\n", encoding="utf-8"
+    )
     assert len(cells) == len(validation.PREVALENCES) * len(validation.SIZES)
     assert validation.check(cells) == []
     for cell in cells:
